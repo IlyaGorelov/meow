@@ -1,0 +1,17 @@
+ifeow (smth) { // branching
+    smth;
+}
+
+wheowle () { // cycle
+    smth;
+}
+
+meow x = 2 * 3 + 3 - 3 / 2 * 2 > 3 < 2; // math and variables
+
+meow h = 'Hello, World!\n'; //null-terminated string
+
+meow new_string = reow() ; reads until null-terminator
+
+wreow(new_string) ; write until null-terminator
+
+meow r = parseInt(reow())
