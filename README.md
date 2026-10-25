@@ -1,4 +1,4 @@
-# Brainfuck. Транслятор и модель
+# Meow. Транслятор и модель
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 
@@ -30,48 +30,194 @@
 ## Язык программирования
 
 ```ebnf
-program ::= <term>+
 
-<term> ::= <var_assignment>
-        | <const_assignment>
-        | <function>
-        | <cycle>
-        | <branch>
-        | <comment>
+program ::= <term>*
 
-<const_assignment> ::= const <name> = <expression> | <string>;
+<term> ::= <var_declaration>
+         | <var_assignment>
+         | <const_declaration>
+         | <function>
+         | <cycle>
+         | <branch>
+         | <comment>
+         | <function_call>
+         | <output>
+         | <continue_statement>
+         | <return_statement>
 
-<var_assignment> ::= <name> = <expression> | <string>;
 
-<string> :: = "<любые знаки, кроме кавычек и ';'>",0;
+<const_declaration> ::= "const" <var_declaration>
 
-<name> ::= <any symbols starting with letters or _>
+<var_declaration> ::= <type> <name> "=" <initializer> ";"
 
-<expression> :: = <operand> | <operand> <operator> <operand>
+<type> ::= <primitive_type>
+         | <array_type>
 
-<operand> ::= <name> | <number_literal>
+<primitive_type> ::= "int"
+                   | "long"
+                   | "char"
+                   | "string"
 
-<number_literal> ::= <any number>
+<array_type> ::= "int" "[" "]"
+               | "long" "[" "]"
+               | "char" "[" "]"
 
-<operator> :: = <anyone of this: '+', '-', '|', '&'>
+<array_creation> ::= "new" <array_element_type> "[" <expression> "]"
 
-<function> :: = function <name> (<params>) {<body>}
+<array_element_type> ::= "int"
+                       | "long"
+                       | "char"
 
-<params> ::= <no params> | <name> | <name> "," <params>
+<initializer> ::= <expression>
+                | <input_call>
+                | <array_creation>
+
+<var_assignment> ::= <lvalue> "=" <initializer> ";"
+
+<lvalue> ::= <name>
+           | <name> "[" <expression> "]"
+
+
+<array_creation> ::= "new" <primitive_type> "[" <expression> "]"
+
+
+<input_call> ::= "hear" "(" ")"
+               | "hearline" "(" ")"
+
+
+<string> ::= "\"" <string_content> "\""
+
+<string_content> ::= <any characters except double quotes>
+
+<char_literal> ::= "'" <char_content> "'"
+
+<char_content> ::= <single character except single quote>
+
+
+<name> ::= <letter_or_underscore> <name_character>*
+
+<name_character> ::= <letter>
+                   | <digit>
+                   | "_"
+
+<number_literal> ::= <digit>+
+
+
+<expression> ::= <logical_or_expression>
+
+<logical_or_expression> ::= <logical_and_expression>
+                          | <logical_or_expression> "||"
+                            <logical_and_expression>
+
+<logical_and_expression> ::= <bitwise_or_expression>
+                           | <logical_and_expression> "&&"
+                             <bitwise_or_expression>
+
+<bitwise_or_expression> ::= <bitwise_and_expression>
+                          | <bitwise_or_expression> "|"
+                            <bitwise_and_expression>
+
+<bitwise_and_expression> ::= <equality_expression>
+                           | <bitwise_and_expression> "&"
+                             <equality_expression>
+
+<equality_expression> ::= <relational_expression>
+                        | <equality_expression> "=="
+                          <relational_expression>
+                        | <equality_expression> "!="
+                          <relational_expression>
+
+<relational_expression> ::= <additive_expression>
+                          | <relational_expression> "<"
+                            <additive_expression>
+                          | <relational_expression> ">"
+                            <additive_expression>
+                          | <relational_expression> "<="
+                            <additive_expression>
+                          | <relational_expression> ">="
+                            <additive_expression>
+
+<additive_expression> ::= <multiplicative_expression>
+                        | <additive_expression> "+"
+                          <multiplicative_expression>
+                        | <additive_expression> "-"
+                          <multiplicative_expression>
+
+<multiplicative_expression> ::= <unary_expression>
+                              | <multiplicative_expression> "*"
+                                <unary_expression>
+                              | <multiplicative_expression> "/"
+                                <unary_expression>
+                              | <multiplicative_expression> "%"
+                                <unary_expression>
+
+<unary_expression> ::= <postfix_expression>
+                     | "-" <unary_expression>
+
+<postfix_expression> ::= <primary_expression>
+                       | <postfix_expression> "[" <expression> "]"
+
+<primary_expression> ::= <name>
+                       | <number_literal>
+                       | <string>
+                       | <char_literal>
+                       | "(" <expression> ")"
+                       | <function_call>
+
+
+<arguments> ::= <expression> ("," <expression>)*
+
+
+<function> ::= <return_type> <name>
+               "(" <parameters> ")" "{" <body> "}"
+
+<return_type> ::= <type>
+                | "void"
+
+<parameters> ::= <empty>
+               | <parameter> ("," <parameter>)*
+
+<parameter> ::= <type> <name>
+
 
 <body> ::= <body_term>*
 
-<body_term> ::= <var_assignment> | <cycle> | <branch> | <comment>
+<body_term> ::= <var_declaration>
+              | <var_assignment>
+              | <const_declaration>
+              | <cycle>
+              | <branch>
+              | <comment>
+              | <function_call>
+              | <output>
+              | <continue_statement>
+              | <return_statement>
 
-<cycle> ::= while (<boolean_expression>) {<body>}
 
-<boolean_expression> ::= <operand> <comparison operator> <operand>
+<cycle> ::= "while" "(" <boolean_expression> ")" "{" <body> "}"
 
-<comparison operator> ::= <anyone of this '==', '!=', '>', '<', '<=', '>='>>
+<boolean_expression> ::= <expression>
 
-<branch> ::= if (<boolean_expression>) {<body>}
 
-<comment> ::= //<any characters except newline>
+<branch> ::= "if" "(" <boolean_expression> ")" "{" <body> "}"
+             ["else" "{" <body> "}"]
+
+
+<continue_statement> ::= "continue" ";"
+
+<return_statement> ::= "return" [<expression>] ";"
+
+
+<comment> ::= "#" <characters_except_newline>
+
+
+<function_call> ::= <name> "(" [<arguments>] ")" ";"
+
+<output> ::= "meow" "(" <out_arguments> ")" ";"
+
+<out_arguments> ::= <expression>
+                  | <string>
+                  | <char_literal>
 ```
 
 Код выполняется последовательно.
@@ -81,7 +227,7 @@ program ::= <term>+
 
 Память выделяется статически, при запуске модели. Видимость данных -- локальная.
 
-Типизация -- динамическая
+Типизация -- статическая
 
 Виды литералов -- int - целочисленные значений; string - null-terminated strings
 
@@ -93,8 +239,13 @@ program ::= <term>+
 | x0 (zero) - zero                             |
 | x1 (ra) - return address for a call          |
 | x2 (sp) - stack pointer                      |
-| x5 - alternate return address register       |
-| x1-x31 - general registers                   |
+| x3 (gb) - global pointer                     |
+| x4 (tp) - thread pointer                     |
+| x5-x7 (t0-t2) - temporary registers          |
+| x8-x9 (s0-s1) - callee-saved registers       |
+| x10-x17 (a0-a7) - argument registers         |
+| x18-x27 (s2-s11) - callee-saved registers    |
+| x28-x31 (t3-t6) - temporary registers        |
 | pc                                           |
 +----------------------------------------------+
 
@@ -172,6 +323,8 @@ program ::= <term>+
 | `slti <rd>, <rs1>`      | 1             | places the value 1 in rd if rs1 is less than the sign-extended immediate when both are treated as signed numbers, else 0 is written to rd |
 | `lui <rd>, <k>`         | 1             | places the 32-bit U-immediate value into the destination register rd, filling in the lowest 12 bits with zeros                            |
 | `mv <rd>, <rs>`         | 1             | Скопировать значение из регистра `rs` в регистр `rd` . Encoded like `addi`                                                                |
+| `xori <rd>, <rs1>, <k>` | 1             |                                                                                                                                           |
+| `sltiu rd, rs1, imm`    | 1             |                                                                                                                                           |
 
 #### Register-Register Instructions
 
@@ -180,6 +333,7 @@ program ::= <term>+
 | `add <rd>, <rs1>, <rs2>`  | 1             | performs the addition of rs1 and rs2                                                                             |
 | `sub <rd>, <rs1>, <rs2>`  | 1             | performs the subtraction of rs2 from rs1                                                                         |
 | `slt <rd>, <rs1>, <rs2>`  | 1             | performs signed compare, writing 1 to rd if rs1 < rs2, 0 otherwise                                               |
+| `sltu <rd>, <rs1>, <rs2>` | 1             | performs unsigned compare, writing 1 to rd if rs1 < rs2, 0 otherwise                                             |
 | `and <rd>, <rs1>, <rs2>`  | 1             | bitwise logical and                                                                                              |
 | `or <rd>, <rs1>, <rs2>`   | 1             | bitwise logical or                                                                                               |
 | `xor <rd>, <rs1>, <rs2>`  | 1             | bitwise logical xor                                                                                              |
@@ -193,11 +347,12 @@ program ::= <term>+
 
 #### Unconditional Flow Controls
 
-| Инструкция NOP  | Кол-во тактов | Описание                                                                                                                                                                                         |
-| --------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `jal <rd>, <k>` | 2             | The offset is sign-extended and added to the address of the jump instruction to form the jump target address. stores the address of the instruction following the jump ('pc'+4) into register rd |
-| `j <k>`         | 1             | Do `jal` without saving return address k`                                                                                                                                                        |
-| `halt`          | 0             | Halts the program                                                                                                                                                                                |
+| Инструкция NOP         | Кол-во тактов | Описание                                                                                                                                                                                         |
+| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `jal <rd>, <k>`        | 2             | The offset is sign-extended and added to the address of the jump instruction to form the jump target address. stores the address of the instruction following the jump ('pc'+4) into register rd |
+| `jalr rd, offset(rs1)` | 2             |                                                                                                                                                                                                  |
+| `j <k>`                | 1             | Do `jal` without saving return address k`                                                                                                                                                        |
+| `halt`                 | 0             | Halts the program                                                                                                                                                                                |
 
 #### Conditional Branches
 

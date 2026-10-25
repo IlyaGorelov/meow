@@ -1,45 +1,18 @@
-"""Представление исходного и машинного кода.
-
-Определено два представления:
-- Бинарное
-- JSON
-"""
-
-import json
 from collections import namedtuple
 from enum import Enum
 
 
 class Opcode(str, Enum):
-    """Opcode для инструкций.
-
-    Можно разделить на две группы:
-
-    1. Непосредственно представленные на уровне языка: `RIGHT`, `LEFT`, `INC`, `DEC`, `INPUT`, `PRINT`.
-    2. Инструкции для управления, где:
-        - `JMP`, `JZ` -- безусловный и условный переходы:
-
-            | Operator Position | Исходный код | Машинный код |
-            |-------------------|--------------|--------------|
-            | n                 | `[`          | `JZ (k+1)`   |
-            | ...               | ...          |              |
-            | k                 |              |              |
-            | k+1               | `]`          | `JMP n`      |
-
-        - `HALT` -- остановка машины.
-    """
-
-    RIGHT = "right"
-    LEFT = "left"
-    INC = "increment"
-    DEC = "decrement"
-    INPUT = "input"
-    PRINT = "print"
-
-    JMP = "jmp"
-    JZ = "jz"
-
-    HALT = "halt"
+    OP = "OP"
+    LUI = "LUI"
+    OPIMM = "OP-IMM"
+    LOAD = "LOAD"
+    STORE = "STORE"
+    JAL = "JAL"
+    BRANCH = "BRANCH"
+    IN = "IN"
+    OUT="OUT"
+    HALT = "HALT"
 
     def __str__(self):
         """Переопределение стандартного поведения `__str__` для `Enum`: вместо
@@ -54,31 +27,32 @@ class Term(namedtuple("Term", "line pos symbol")):
     Сделано через класс, чтобы был docstring.
     """
 
-
-# Словарь соответствия кодов операций их бинарному представлению
 opcode_to_binary = {
-    Opcode.INC: 0x0,  # 0000
-    Opcode.DEC: 0x1,  # 0001
-    Opcode.LEFT: 0x2,  # 0010
-    Opcode.RIGHT: 0x3,  # 0011
-    Opcode.PRINT: 0x4,  # 0100
-    Opcode.INPUT: 0x5,  # 0101
-    Opcode.JMP: 0x6,  # 0110
-    Opcode.JZ: 0x7,  # 0111
-    Opcode.HALT: 0x8,  # 1000
+    Opcode.OP:     0x00,  # 00000000
+    Opcode.LUI:    0x01,  # 00000001
+    Opcode.OPIMM: 0x02,  # 00000010
+    Opcode.LOAD:   0x03,  # 00000011
+    Opcode.STORE:  0x04,  # 00000100
+    Opcode.JAL:    0x05,  # 00000101
+    Opcode.BRANCH: 0x06,  # 00000110
+    Opcode.IN:     0x07,  # 00000111
+    Opcode.OUT:    0x08,  # 00001000
+    Opcode.HALT:   0x09,  # 00001001
 }
 
 binary_to_opcode = {
-    0x0: Opcode.INC,  # 0000
-    0x1: Opcode.DEC,  # 0001
-    0x2: Opcode.LEFT,  # 0010
-    0x3: Opcode.RIGHT,  # 0011
-    0x4: Opcode.PRINT,  # 0100
-    0x5: Opcode.INPUT,  # 0101
-    0x6: Opcode.JMP,  # 0110
-    0x7: Opcode.JZ,  # 0111
-    0x8: Opcode.HALT,  # 1000
+    0x00: Opcode.OP,      # 00000000
+    0x01: Opcode.LUI,     # 00000001
+    0x02: Opcode.OPIMM,  # 00000010
+    0x03: Opcode.LOAD,    # 00000011
+    0x04: Opcode.STORE,   # 00000100
+    0x05: Opcode.JAL,     # 00000101
+    0x06: Opcode.BRANCH,  # 00000110
+    0x07: Opcode.IN,      # 00000111
+    0x08: Opcode.OUT,     # 00001000
+    0x09: Opcode.HALT,    # 00001001
 }
+
 
 
 def to_bytes(code):

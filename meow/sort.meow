@@ -1,0 +1,51 @@
+// need to make long take 64 bit
+long[] array = new long[1024];
+
+long cur_number = 1;
+int index = 0;
+
+while (cur_number != 0) {
+    cur_number = hear();
+
+    if (cur_number != 0) {
+        if (index < 1024) {
+            array[index] = cur_number;
+            index = index + 1;
+        }
+    }
+}
+
+int length = index;
+
+long[] sorted = new long[length];
+
+int i = 0;
+while (i < length) {
+    sorted[i] = array[i];
+    i = i + 1;
+}
+
+int sortedFlag = 0;
+
+while (sortedFlag == 0) {
+    sortedFlag = 1;
+    index = 0;
+
+    while (index < length - 1) {
+        if (sorted[index] > sorted[index + 1]) {
+            long t = sorted[index];
+            sorted[index] = sorted[index + 1];
+            sorted[index + 1] = t;
+
+            sortedFlag = 0;
+        }
+
+        index = index + 1;
+    }
+}
+
+index = 0;
+while (index < length) {
+    meow(sorted[index]);
+    index = index + 1;
+}

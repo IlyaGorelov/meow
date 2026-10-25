@@ -1,0 +1,2 @@
+string in = hearline();
+meow(in);

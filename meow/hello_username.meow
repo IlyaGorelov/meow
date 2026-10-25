@@ -1,0 +1,5 @@
+meow("What's your name?: ");
+string s = hearline();
+
+meow("Hello, ");
+meow(s);
