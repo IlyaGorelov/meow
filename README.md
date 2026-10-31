@@ -4,7 +4,7 @@
 
 **Table of Contents**
 
-- [Brainfuck. Транслятор и модель](#brainfuck-транслятор-и-модель)
+- [Meow. Транслятор и модель](#meow-транслятор-и-модель)
   - [Язык программирования](#язык-программирования)
   - [Язык программирования Asm](#язык-программирования-asm)
   - [Организация памяти](#организация-памяти)
@@ -30,194 +30,165 @@
 ## Язык программирования
 
 ```ebnf
-
-program ::= <term>*
+<program> ::= <term>*
 
 <term> ::= <var_declaration>
-         | <var_assignment>
          | <const_declaration>
+         | <var_assignment>
          | <function>
          | <cycle>
          | <branch>
          | <comment>
-         | <function_call>
+         | <function_call_statement>
          | <output>
          | <continue_statement>
+         | <break_statement>
          | <return_statement>
 
 
-<const_declaration> ::= "const" <var_declaration>
-
-<var_declaration> ::= <type> <name> "=" <initializer> ";"
+<var_declaration> ::= <type> <name> = <initializer> ;
 
 <type> ::= <primitive_type>
          | <array_type>
 
-<primitive_type> ::= "int"
-                   | "long"
-                   | "char"
-                   | "string"
+<primitive_type> ::= int
+                   | long
+                   | byte
+                   | bool
+                   | string
 
-<array_type> ::= "int" "[" "]"
-               | "long" "[" "]"
-               | "char" "[" "]"
+<array_type> ::= int []
+               | long []
+               | byte []
 
-<array_creation> ::= "new" <array_element_type> "[" <expression> "]"
-
-<array_element_type> ::= "int"
-                       | "long"
-                       | "char"
+<name> ::= <letter_or_digit_or_underscore>
 
 <initializer> ::= <expression>
-                | <input_call>
                 | <array_creation>
-
-<var_assignment> ::= <lvalue> "=" <initializer> ";"
-
-<lvalue> ::= <name>
-           | <name> "[" <expression> "]"
-
-
-<array_creation> ::= "new" <primitive_type> "[" <expression> "]"
-
-
-<input_call> ::= "hear" "(" ")"
-               | "hearline" "(" ")"
-
-
-<string> ::= "\"" <string_content> "\""
-
-<string_content> ::= <any characters except double quotes>
-
-<char_literal> ::= "'" <char_content> "'"
-
-<char_content> ::= <single character except single quote>
-
-
-<name> ::= <letter_or_underscore> <name_character>*
-
-<name_character> ::= <letter>
-                   | <digit>
-                   | "_"
-
-<number_literal> ::= <digit>+
-
 
 <expression> ::= <logical_or_expression>
 
 <logical_or_expression> ::= <logical_and_expression>
-                          | <logical_or_expression> "||"
-                            <logical_and_expression>
+                          | <logical_or_expression> || <logical_and_expression>
 
 <logical_and_expression> ::= <bitwise_or_expression>
-                           | <logical_and_expression> "&&"
-                             <bitwise_or_expression>
+                           | <logical_and_expression> && <bitwise_or_expression>
 
 <bitwise_or_expression> ::= <bitwise_and_expression>
-                          | <bitwise_or_expression> "|"
-                            <bitwise_and_expression>
+                          | <bitwise_or_expression> | <bitwise_and_expression>
 
 <bitwise_and_expression> ::= <equality_expression>
-                           | <bitwise_and_expression> "&"
-                             <equality_expression>
+                           | <bitwise_and_expression> & <equality_expression>
 
 <equality_expression> ::= <relational_expression>
-                        | <equality_expression> "=="
-                          <relational_expression>
-                        | <equality_expression> "!="
-                          <relational_expression>
+                        | <equality_expression> == <relational_expression>
+                        | <equality_expression> != <relational_expression>
 
 <relational_expression> ::= <additive_expression>
-                          | <relational_expression> "<"
-                            <additive_expression>
-                          | <relational_expression> ">"
-                            <additive_expression>
-                          | <relational_expression> "<="
-                            <additive_expression>
-                          | <relational_expression> ">="
-                            <additive_expression>
+                          | <relational_expression> < <additive_expression>
+                          | <relational_expression> > <additive_expression>
+                          | <relational_expression> <= <additive_expression>
+                          | <relational_expression> >= <additive_expression>
 
 <additive_expression> ::= <multiplicative_expression>
-                        | <additive_expression> "+"
-                          <multiplicative_expression>
-                        | <additive_expression> "-"
-                          <multiplicative_expression>
+                        | <additive_expression> + <multiplicative_expression>
+                        | <additive_expression> - <multiplicative_expression>
 
 <multiplicative_expression> ::= <unary_expression>
-                              | <multiplicative_expression> "*"
-                                <unary_expression>
-                              | <multiplicative_expression> "/"
-                                <unary_expression>
-                              | <multiplicative_expression> "%"
-                                <unary_expression>
+                              | <multiplicative_expression> * <unary_expression>
+                              | <multiplicative_expression> / <unary_expression>
+                              | <multiplicative_expression> % <unary_expression>
 
 <unary_expression> ::= <postfix_expression>
-                     | "-" <unary_expression>
+                     | - <unary_expression>
 
 <postfix_expression> ::= <primary_expression>
-                       | <postfix_expression> "[" <expression> "]"
+                       | <postfix_expression> [ <expression> ]
+
 
 <primary_expression> ::= <name>
                        | <number_literal>
-                       | <string>
-                       | <char_literal>
-                       | "(" <expression> ")"
+                       | <boolean_literal>
+                       | <string_literal>
+                       | <byte_literal>
+                       | <input_call>
                        | <function_call>
+                       | ( <expression> )
 
+<number_literal> ::= <digit>+
 
-<arguments> ::= <expression> ("," <expression>)*
+<boolean_literal> ::= true | false
 
+<string_literal> ::= "<any characters except double quotes>"
+
+<byte_literal> ::= '<single character except single quote>'
+
+<input_call> ::= hear ()
+
+<function_call> ::= <name> ( [ <arguments> ] )
+
+<arguments> ::= <expression>
+              | <expression> , <arguments>
+
+<array_creation> ::= new <array_element_type> [ <expression> ]
+
+<array_element_type> ::= int
+                       | long
+                       | byte
+
+<const_declaration> ::= const <var_declaration>
+
+<var_assignment> ::= <lvalue> = <initializer> ;
+
+<lvalue> ::= <name>
+           | <name> [ <expression> ]
+
+<function_call_statement> ::= <function_call> ;
 
 <function> ::= <return_type> <name>
-               "(" <parameters> ")" "{" <body> "}"
+               ( <parameters> )
+               { <body> }
 
 <return_type> ::= <type>
-                | "void"
+                | void
 
 <parameters> ::= <empty>
-               | <parameter> ("," <parameter>)*
+               | <parameter>
+               | <parameter> , <parameters>
 
 <parameter> ::= <type> <name>
-
 
 <body> ::= <body_term>*
 
 <body_term> ::= <var_declaration>
-              | <var_assignment>
               | <const_declaration>
+              | <var_assignment>
               | <cycle>
               | <branch>
               | <comment>
-              | <function_call>
+              | <function_call_statement>
               | <output>
               | <continue_statement>
+              | <break_statement>
               | <return_statement>
 
 
-<cycle> ::= "while" "(" <boolean_expression> ")" "{" <body> "}"
+<cycle> ::= while ( <boolean_expression> ) { <body> }
 
 <boolean_expression> ::= <expression>
 
+<branch> ::= if ( <boolean_expression> ) { <body> }
+             [ else { <body> } ]
 
-<branch> ::= "if" "(" <boolean_expression> ")" "{" <body> "}"
-             ["else" "{" <body> "}"]
+<continue_statement> ::= continue ;
 
+<break_statement> ::= break ;
 
-<continue_statement> ::= "continue" ";"
+<return_statement> ::= return [ <expression> ] ;
 
-<return_statement> ::= "return" [<expression>] ";"
+<output> ::= meow ( <expression> ) ;
 
-
-<comment> ::= "#" <characters_except_newline>
-
-
-<function_call> ::= <name> "(" [<arguments>] ")" ";"
-
-<output> ::= "meow" "(" <out_arguments> ")" ";"
-
-<out_arguments> ::= <expression>
-                  | <string>
-                  | <char_literal>
+<comment> ::= # <characters_except_newline>
 ```
 
 Код выполняется последовательно.
@@ -229,7 +200,12 @@ program ::= <term>*
 
 Типизация -- статическая
 
-Виды литералов -- int - целочисленные значений; string - null-terminated strings
+Виды литералов:
+
+- long - 8-байтовые знаковые числа;
+- int - 4-байтовые знаковые числа;
+- string - null-terminated strings;
+- byte\bool - однобайтовые знаковые числа;
 
 ## Организация памяти
 
@@ -239,13 +215,10 @@ program ::= <term>*
 | x0 (zero) - zero                             |
 | x1 (ra) - return address for a call          |
 | x2 (sp) - stack pointer                      |
-| x3 (gb) - global pointer                     |
-| x4 (tp) - thread pointer                     |
-| x5-x7 (t0-t2) - temporary registers          |
-| x8-x9 (s0-s1) - callee-saved registers       |
-| x10-x17 (a0-a7) - argument registers         |
-| x18-x27 (s2-s11) - callee-saved registers    |
-| x28-x31 (t3-t6) - temporary registers        |
+| x3 (s0) - frame pointer                      |
+| x4 (s1) - heap pointer                       |
+| x5-x12 (a0-a7) - argument registers          |
+| x13-x18 (t0-t5) - temporary registers        |
 | pc                                           |
 +----------------------------------------------+
 
@@ -271,7 +244,7 @@ program ::= <term>*
 
 1. Работа с литералами
 
-- Непосредственная адресация может быть использована только в операциях `Load Upper Immediate` и `Add Immediate`. Когда литерал используется в арифметичских выражениях, либо в условных переходах.
+- Непосредственная адресация может быть использована только в операциях `Load Upper Immediate` и `Add Immediate`. Когда литерал используется в арифметических выражениях, либо в условных переходах.
 - Сохранение в статическую память происходит только при присвоении переменной значения литерала
 - Литералы размещаются последовательно в памяти
 - Если литерал выходит за размер машинного слова, то он будет сохранен как Big-endian

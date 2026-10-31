@@ -1,6 +1,6 @@
 .PHONY: run clean
 
-run: | bin
+run: bin
 	src/translator.py meow/test.meow bin/out.bin
 
 bin:

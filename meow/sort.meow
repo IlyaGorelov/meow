@@ -1,4 +1,3 @@
-// need to make long take 64 bit
 long[] array = new long[1024];
 
 long cur_number = 1;

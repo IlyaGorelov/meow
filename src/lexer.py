@@ -1,18 +1,26 @@
+# Transform meow-file into a list of tokens below
+# 
+# Token is a tuple of:
+#       -type, 
+#       -value, 
+#       -line number,
+#       -character number in this line
 
 KEYWORDS = {
     "int": "INT",
     "long": "LONG",
-    "char": "CHAR",
-    "string": "STRING_TYPE",
+    "byte": "BYTE",
+    "string": "STRING",
+    "bool": "BOOL",
+    "true": "BOOL_LITERAL",
+    "false": "BOOL_LITERAL",
     "void": "VOID",
     "const": "CONST",
-    "function": "FUNCTION",
     "while": "WHILE",
     "if": "IF",
     "else": "ELSE",
     "new": "NEW",
     "hear": "HEAR",
-    "hearline": "HEARLINE",
     "meow": "MEOW",
     "continue": "CONTINUE",
     "break": "BREAK",
@@ -49,6 +57,13 @@ PUNCTUATION = {
     ";": "SEMICOLON",
 }
 
+# some extra tokens:
+EOF = "EOF"
+COMMENT = "COMMENT"
+STRING_LITERAL="STRING_LITERAL"
+CHAR_LITERAL ="CHAR_LITERAL"
+NUMBER_LITERAL = "NUMBER_LITERAL"
+IDENTIFIER = "IDENTIFIER"
 
 class Lexer:
     def __init__(self, source):
@@ -59,13 +74,10 @@ class Lexer:
         self.tokens = []
 
     def add_token(self, token_type, value):
-        # if line is None:
-        #     line = self.line
-
         self.tokens.append((token_type, 
                             value, 
                             self.line,
-                            self.pos_in_line))
+                            self.pos_in_line-1))
 
     def tokenize(self):
         while self.pos < len(self.source):
@@ -75,8 +87,10 @@ class Lexer:
                 if char == "\n":
                     self.line += 1
                     self.pos_in_line=0
+                else:
+                    self.pos_in_line +=1 
+                    
                 self.pos += 1
-                self.pos_in_line +=1 
                 continue
 
             if char == '#':
@@ -113,11 +127,13 @@ class Lexer:
                 self.pos_in_line += 1
                 continue
 
+            print(self.pos_in_line, self.pos)
+
             raise SyntaxError(
                 f"Unknown character {char!r} at line {self.line}:{self.pos_in_line}"
             )
 
-        self.add_token("EOF", None)
+        self.add_token(EOF, None)
         return self.tokens
 
     def read_comment(self):
@@ -131,7 +147,7 @@ class Lexer:
             self.pos_in_line += 1
 
         self.add_token(
-            "COMMENT",
+            COMMENT,
             self.source[start:self.pos]
         )
 
@@ -147,7 +163,7 @@ class Lexer:
                 value = self.source[start:self.pos]
                 self.pos += 1
                 self.pos_in_line += 1
-                self.add_token("STRING_LITERAL", value)
+                self.add_token(STRING_LITERAL, value)
                 return
 
             if char == "\n":
@@ -192,7 +208,7 @@ class Lexer:
 
         self.pos += 1
         self.pos_in_line+=1
-        self.add_token("CHAR_LITERAL", char)
+        self.add_token(CHAR_LITERAL, char)
 
     def read_number(self):
         start = self.pos
@@ -205,7 +221,7 @@ class Lexer:
             self.pos_in_line+=1
 
         self.add_token(
-            "NUMBER",
+            NUMBER_LITERAL,
             self.source[start:self.pos]
         )
 
@@ -222,7 +238,7 @@ class Lexer:
                 break
 
         value = self.source[start:self.pos]
-        token_type = KEYWORDS.get(value, "IDENT")
+        token_type = KEYWORDS.get(value, IDENTIFIER)
 
         self.add_token(token_type, value)
 

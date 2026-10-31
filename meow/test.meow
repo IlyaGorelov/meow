@@ -1,1 +1,13 @@
-int r = 2+2$
+long b = 4;
+string s = "aaaaaaaaa";
+
+byte cur = 1;
+int i = 0;
+
+bool q = cur!=0;
+
+while (q){
+    cur=s[i];
+    i=i+1;
+    q=cur!=0;
+}
