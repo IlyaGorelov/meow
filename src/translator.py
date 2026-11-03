@@ -1,7 +1,3 @@
-#!/usr/bin/python3
-"""Транслятор brainfuck в машинный код.
-"""
-
 import os
 import sys
 
@@ -9,9 +5,8 @@ from lexer import Lexer
 from parser import Parser
 from generator import CodeGenerator
 from isa import Assembler
+from data_generator import DataGenerator
 
-def translate(soource):
-    return
 
 def main(source, target):
     with open(source, encoding="utf-8") as f:
@@ -25,6 +20,8 @@ def main(source, target):
 
     binary = Assembler.to_bytes(code)
 
+    binary_data = DataGenerator().generate(code)
+
     hex = Assembler.to_hex(code)
 
     # Убедимся, что каталог назначения существует
@@ -34,6 +31,8 @@ def main(source, target):
     if target.endswith(".bin"):
         with open(target, "wb") as f:
             f.write(binary)
+        with open(target+"_data", "wb") as f:
+            f.write(binary_data)
         with open(target + ".hex", "w") as f:
             f.write(hex)
         with open(target + ".asm", "w") as f:
