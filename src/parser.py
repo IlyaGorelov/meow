@@ -98,10 +98,6 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = list(tokens)
 
-        if not self.tokens or self.tokens[-1][0] != EOF:
-            token = self.tokens[-1] if self.tokens else (None, None, 1, 0)
-            self.tokens.append((EOF, None, token[2], token[3]))
-
         self.pos = 0
 
     def current(self):
@@ -216,9 +212,6 @@ class Parser:
                 self.error(f"arrays of {base_type} are not allowed yet")
 
             self.expect(PUNCTUATION["]"], "']' in array type")
-
-            if self.is_current_token_in(PUNCTUATION["["]):
-                self.error("nested arrays are not allowed yet")
 
             return base_type + "[]"
 
@@ -558,8 +551,6 @@ class Parser:
             expression = self.parse_expression()
             self.expect("RPAREN", "')'")
             return expression
-
-        self.error(f"expected an expression, got {self.current()}")
 
     def parse_function_call(self):
         name = self.expect(IDENTIFIER, "function name")[1]

@@ -166,48 +166,18 @@ class Lexer:
                 self.add_token(STRING_LITERAL, value)
                 return
 
-            if char == "\n":
-                raise SyntaxError(
-                    f"Unterminated string at line {self.line}:{self.pos_in_line}"
-                )
-
             self.pos += 1
             self.pos_in_line += 1
-
-        raise SyntaxError(
-            f"Unterminated string at line {self.line}:{self.pos_in_line}"
-        )
 
     def read_char(self):
         self.pos += 1
         self.pos_in_line += 1
 
-        if self.pos >= len(self.source):
-            raise SyntaxError(
-                f"Unterminated character literal at line {self.line}:{self.pos_in_line}"
-            )
-
         char = self.source[self.pos]
 
-        if char in ("'", "\n"):
-            raise SyntaxError(
-                f"Invalid character literal at line {self.line}:{self.pos_in_line}:{self.pos}"
-            )
-
-        self.pos += 1
-        self.pos_in_line+=1
-
-        if (
-            self.pos >= len(self.source)
-            or self.source[self.pos] != "'"
-        ):
-            raise SyntaxError(
-                f"Character literal must contain exactly one "
-                f"character at line {self.line}:{self.pos_in_line}"
-            )
-
-        self.pos += 1
-        self.pos_in_line+=1
+        self.pos += 2
+        self.pos_in_line+=2
+        
         self.add_token(CHAR_LITERAL, char)
 
     def read_number(self):

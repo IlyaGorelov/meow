@@ -7,8 +7,8 @@ import sys
 
 from lexer import Lexer
 from parser import Parser
-from semantic_analyzer import SemanticAnalyzer
 from generator import CodeGenerator
+from isa import Assembler
 
 def translate(soource):
     return
@@ -21,22 +21,23 @@ def main(source, target):
 
     ast = Parser(tokens).parse()
 
-    SemanticAnalyzer().analyze(ast)
+    code = CodeGenerator().generate(ast)
 
-    result = CodeGenerator().generate(ast)
+    binary = Assembler.to_bytes(code)
+
+    hex = Assembler.to_hex(code)
 
     # Убедимся, что каталог назначения существует
     os.makedirs(os.path.dirname(os.path.abspath(target)) or ".", exist_ok=True)
 
-    with open(target, "w") as f:
-            f.write(result)
-
     # Запишим выходные файлы
-    # if target.endswith(".bin"):
-    #     with open(target, "wb") as f:
-    #         f.write(res)
-    #     with open(target + ".hex", "w") as f:
-    #         f.write(res)
+    if target.endswith(".bin"):
+        with open(target, "wb") as f:
+            f.write(binary)
+        with open(target + ".hex", "w") as f:
+            f.write(hex)
+        with open(target + ".asm", "w") as f:
+            f.write(code)
 
     # Обратите внимание, что память данных не экспортируется в файл, так как
     # в случае brainfuck она может быть инициализирована только 0.

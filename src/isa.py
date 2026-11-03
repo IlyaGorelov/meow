@@ -9,154 +9,534 @@ class Opcode(str, Enum):
     LOAD = "LOAD"
     STORE = "STORE"
     JAL = "JAL"
+    JALR = "JALR"
     BRANCH = "BRANCH"
     IN = "IN"
-    OUT="OUT"
+    OUT = "OUT"
     HALT = "HALT"
 
     def __str__(self):
-        """Переопределение стандартного поведения `__str__` для `Enum`: вместо
-        `Opcode.INC` вернуть `increment`.
-        """
-        return str(self.value)
+        return self.value
 
 
 class Term(namedtuple("Term", "line pos symbol")):
-    """Описание выражения из исходного текста программы.
+    """Описание выражения из исходного текста программы."""
 
-    Сделано через класс, чтобы был docstring.
-    """
 
 opcode_to_binary = {
-    Opcode.OP:     0x00,  # 00000000
-    Opcode.LUI:    0x01,  # 00000001
-    Opcode.OPIMM: 0x02,  # 00000010
-    Opcode.LOAD:   0x03,  # 00000011
-    Opcode.STORE:  0x04,  # 00000100
-    Opcode.JAL:    0x05,  # 00000101
-    Opcode.BRANCH: 0x06,  # 00000110
-    Opcode.IN:     0x07,  # 00000111
-    Opcode.OUT:    0x08,  # 00001000
-    Opcode.HALT:   0x09,  # 00001001
+    Opcode.OP: 0x00,
+    Opcode.LUI: 0x01,
+    Opcode.OPIMM: 0x02,
+    Opcode.LOAD: 0x03,
+    Opcode.STORE: 0x04,
+    Opcode.JAL: 0x05,
+    Opcode.JALR: 0x0A,
+    Opcode.BRANCH: 0x06,
+    Opcode.IN: 0x07,
+    Opcode.OUT: 0x08,
+    Opcode.HALT: 0x09,
 }
 
 binary_to_opcode = {
-    0x00: Opcode.OP,      # 00000000
-    0x01: Opcode.LUI,     # 00000001
-    0x02: Opcode.OPIMM,  # 00000010
-    0x03: Opcode.LOAD,    # 00000011
-    0x04: Opcode.STORE,   # 00000100
-    0x05: Opcode.JAL,     # 00000101
-    0x06: Opcode.BRANCH,  # 00000110
-    0x07: Opcode.IN,      # 00000111
-    0x08: Opcode.OUT,     # 00001000
-    0x09: Opcode.HALT,    # 00001001
+    value: key for key, value in opcode_to_binary.items()
 }
 
 
+class Assembler:
+    registers = {
+        "zero": 0,
+        "ra": 1,
+        "sp": 2,
+        "gp": 3,
+        "tp": 4,
 
-def to_bytes(code):
-    """Преобразует машинный код в бинарное представление.
+        "t0": 5,
+        "t1": 6,
+        "t2": 7,
 
-    Бинарное представление инструкций:
+        "s0": 8,
+        "fp": 8,
+        "s1": 9,
 
-    ┌─────────┬─────────────────────────────────────────────────────────────┐
-    │ 31...28 │ 27                                                        0 │
-    ├─────────┼─────────────────────────────────────────────────────────────┤
-    │  опкод  │                      адрес перехода                         │
-    └─────────┴─────────────────────────────────────────────────────────────┘
-    """
-    binary_bytes = bytearray()
-    for instr in code:
-        # Получаем бинарный код операции
-        opcode_bin = opcode_to_binary[instr["opcode"]] << 28
+        "a0": 10,
+        "a1": 11,
+        "a2": 12,
+        "a3": 13,
+        "a4": 14,
+        "a5": 15,
+        "a6": 16,
+        "a7": 17,
 
-        # Добавляем адрес перехода, если он есть
-        arg = instr.get("arg", 0)
+        "s2": 18,
+        "s3": 19,
+        "s4": 20,
+        "s5": 21,
+        "s6": 22,
+        "s7": 23,
+        "s8": 24,
+        "s9": 25,
+        "s10": 26,
+        "s11": 27,
 
-        # Формируем 32-битное слово: опкод (4 бита) + адрес (28 бит)
-        binary_instr = opcode_bin | (arg & 0x0FFFFFFF)
+        "t3": 28,
+        "t4": 29,
+        "t5": 30,
+        "t6": 31,
+    }
 
-        # Преобразуем 32-битное целое число в 4 байта (big-endian)
-        binary_bytes.extend(
-            ((binary_instr >> 24) & 0xFF, (binary_instr >> 16) & 0xFF, (binary_instr >> 8) & 0xFF, binary_instr & 0xFF)
+    # R-type: funct3, funct7
+    r_instructions = {
+        "add":  (0b000, 0b0000000),
+        "sub":  (0b000, 0b0100000),
+
+        "sll":  (0b001, 0b0000000),
+        "slt":  (0b010, 0b0000000),
+        "sltu": (0b011, 0b0000000),
+
+        "xor":  (0b100, 0b0000000),
+        "srl":  (0b101, 0b0000000),
+        "sra":  (0b101, 0b0100000),
+
+        "or":   (0b110, 0b0000000),
+        "and":  (0b111, 0b0000000),
+
+        "mul":  (0b000, 0b0000001),
+        "mulh": (0b001, 0b0000001),
+        "div":  (0b100, 0b0000001),
+        "rem":  (0b110, 0b0000001),
+    }
+
+    # I-type: funct3
+    i_instructions = {
+        "addi":  0b000,
+        "sltiu": 0b011,
+        "xori":  0b100,
+    }
+
+    load_instructions = {
+        "lb": 0b000,
+        "lw": 0b010,
+    }
+
+    store_instructions = {
+        "sb": 0b000,
+        "sw": 0b010,
+    }
+
+    branch_instructions = {
+        "beq": 0b000,
+        "bne": 0b001,
+        "blt": 0b100,
+        "bge": 0b101,
+        "bltu": 0b110,
+    }
+
+    @staticmethod
+    def get_register_number(register):
+        return Assembler.registers[register]
+
+    @staticmethod
+    def get_opcode(opcode):
+        return opcode_to_binary[opcode]
+
+    # U-type
+    # imm[31:12] | rd | opcode
+    @staticmethod
+    def encode_u(opcode, rd, imm):
+        instruction = (
+            (imm << 12)
+            | (rd << 7)
+            | Assembler.get_opcode(opcode)
         )
 
-    return bytes(binary_bytes)
+        return instruction
 
-
-def to_hex(code):
-    """Преобразует машинный код в текстовый файл с шестнадцатеричным представлением.
-
-    Формат вывода:
-    <address> - <HEXCODE> - <mnemonic>
-    Например:
-    20 - 03340301 - add #01 <- 34 + #03
-    """
-    binary_code = to_bytes(code)
-    result = []
-
-    for i in range(0, len(binary_code), 4):
-        if i + 3 >= len(binary_code):
-            break
-
-        # Формируем 32-битное слово из 4 байтов
-        word = (binary_code[i] << 24) | (binary_code[i + 1] << 16) | (binary_code[i + 2] << 8) | binary_code[i + 3]
-
-        # Получаем опкод и адрес
-        opcode_bin = (word >> 28) & 0xF
-        arg = word & 0x0FFFFFFF
-
-        # Преобразуем опкод и адрес в мнемонику
-        mnemonic = binary_to_opcode[opcode_bin].value
-        if opcode_bin in (0x6, 0x7):  # jmp или jz требуют аргумент
-            mnemonic = f"{mnemonic} {arg}"
-
-        # Формируем строку в требуемом формате
-        hex_word = f"{word:08X}"
-        address = i // 4
-        line = f"{address} - {hex_word} - {mnemonic}"
-        result.append(line)
-
-    return "\n".join(result)
-
-
-def from_bytes(binary_code):
-    """Преобразует бинарное представление машинного кода в структурированный формат.
-
-    Бинарное представление инструкций:
-
-    ┌─────────┬─────────────────────────────────────────────────────────────┐
-    │ 31...28 │ 27                                                        0 │
-    ├─────────┼─────────────────────────────────────────────────────────────┤
-    │  опкод  │                      адрес перехода                         │
-    └─────────┴─────────────────────────────────────────────────────────────┘
-    """
-    structured_code = []
-    # Обрабатываем байты по 4 за раз для получения 32-битных инструкций
-    for i in range(0, len(binary_code), 4):
-        if i + 3 >= len(binary_code):
-            break
-
-        # Формируем 32-битное слово из 4 байтов
-        binary_instr = (
-            (binary_code[i] << 24) | (binary_code[i + 1] << 16) | (binary_code[i + 2] << 8) | binary_code[i + 3]
+    # R-type
+    # funct7 | rs2 | rs1 | funct3 | rd | opcode
+    @staticmethod
+    def encode_r(opcode, funct3, funct7, rd, rs1, rs2):
+        instruction = (
+            (funct7 << 25)
+            | (rs2 << 20)
+            | (rs1 << 15)
+            | (funct3 << 12)
+            | (rd << 7)
+            | Assembler.get_opcode(opcode)
         )
 
-        # Извлекаем опкод (старшие 4 бита)
-        opcode_bin = (binary_instr >> 28) & 0xF
-        opcode = binary_to_opcode[opcode_bin]
+        return instruction
 
-        # Извлекаем адрес перехода (младшие 28 бит)
-        arg = binary_instr & 0x0FFFFFFF
+    # I-type
+    # imm[11:0] | rs1 | funct3 | rd | opcode
+    @staticmethod
+    def encode_i(opcode, funct3, rd, rs1, imm):
+        instruction = (
+            ((imm & 0xFFF) << 20)
+            | (rs1 << 15)
+            | (funct3 << 12)
+            | (rd << 7)
+            | Assembler.get_opcode(opcode)
+        )
 
-        # Формируем структуру инструкции
-        instr = {"index": i // 4, "opcode": opcode}
+        return instruction
 
-        # Добавляем адрес перехода только для инструкций перехода
-        if opcode in (Opcode.JMP, Opcode.JZ):
-            instr["arg"] = arg
+    # S-type
+    # imm[11:5] | rs2 | rs1 | funct3 | imm[4:0] | opcode
+    @staticmethod
+    def encode_s(opcode, funct3, rs1, rs2, imm):
+        imm = imm & 0xFFF
 
-        structured_code.append(instr)
+        instruction = (
+            (((imm >> 5) & 0x7F) << 25)
+            | (rs2 << 20)
+            | (rs1 << 15)
+            | (funct3 << 12)
+            | ((imm & 0x1F) << 7)
+            | Assembler.get_opcode(opcode)
+        )
 
-    return structured_code
+        return instruction
+
+    # J-type
+    # imm[20] | imm[10:1] | imm[11] | imm[19:12] | rd | opcode
+    @staticmethod
+    def encode_j(opcode, rd, imm):
+        imm &= 0x1FFFFF
+
+        instruction = (
+            (((imm >> 20) & 0x1) << 31)
+            | (((imm >> 1) & 0x3FF) << 21)
+            | (((imm >> 11) & 0x1) << 20)
+            | (((imm >> 12) & 0xFF) << 12)
+            | (rd << 7)
+            | Assembler.get_opcode(opcode)
+        )
+
+        return instruction
+
+    # B-type
+    # imm[12] | imm[10:5] | rs2 | rs1 | funct3 | imm[4:1] | imm[11] | opcode
+    @staticmethod
+    def encode_b(opcode, funct3, rs1, rs2, imm):
+        imm &= 0x1FFF
+
+        instruction = (
+            (((imm >> 12) & 0x1) << 31)
+            | (((imm >> 5) & 0x3F) << 25)
+            | (rs2 << 20)
+            | (rs1 << 15)
+            | (funct3 << 12)
+            | (((imm >> 1) & 0xF) << 8)
+            | (((imm >> 11) & 0x1) << 7)
+            | Assembler.get_opcode(opcode)
+        )
+
+        return instruction
+
+    @staticmethod
+    def parse_instruction(line):
+        line = line.strip()
+
+        if not line:
+            return None
+
+        if line.startswith(".") or ":" in line:
+            return None
+
+        line = (
+            line.replace(",", " ")
+                .replace("(", " ")
+                .replace(")", " ")
+        )
+
+        parts = line.split()
+
+        if not parts:
+            return None
+
+        mnemonic = parts[0]
+        args = parts[1:]
+
+        while len(args)<3:
+            args.append("zero")
+
+        return mnemonic, args
+
+    @staticmethod
+    def assemble_instruction(line):
+        parsed = Assembler.parse_instruction(line)
+
+        if parsed is None:
+            return None
+
+        mnemonic, args = parsed
+
+        if mnemonic == "halt":
+            return Assembler.encode_u(
+                Opcode.HALT, 0, 0
+            )
+
+        if mnemonic == "lui":
+            rd, imm, _ = args
+
+            return Assembler.encode_u(
+                Opcode.LUI,
+                Assembler.get_register_number(rd),
+                int(imm,0)
+            )
+
+        if mnemonic in Assembler.r_instructions:
+            rd, rs1, rs2 = args
+
+            funct3, funct7 = Assembler.r_instructions[mnemonic]
+
+            return Assembler.encode_r(
+                Opcode.OP,
+                funct3,
+                funct7,
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                Assembler.get_register_number(rs2)
+            )
+
+        if mnemonic in ("in", "out"):
+            rd, rs1, rs2 = args
+
+            opcode = Opcode.IN if mnemonic == "in" else Opcode.OUT
+
+            return Assembler.encode_r(
+                opcode,
+                0,
+                0,
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                Assembler.get_register_number(rs2)
+            )
+
+        if mnemonic in Assembler.i_instructions:
+            rd, rs1, imm = args
+
+            return Assembler.encode_i(
+                Opcode.OPIMM,
+                Assembler.i_instructions[mnemonic],
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                int(imm,0)
+            )
+
+        if mnemonic == "mv":
+            rd, rs1, _ = args
+
+            return Assembler.encode_i(
+                Opcode.OPIMM,
+                0,
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                0
+            )
+
+        if mnemonic in Assembler.load_instructions:
+            rd, imm, rs1 = args
+
+            return Assembler.encode_i(
+                Opcode.LOAD,
+                Assembler.load_instructions[mnemonic],
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                int(imm,0)
+            )
+
+        if mnemonic in Assembler.store_instructions:
+            rs2, imm, rs1 = args
+
+            return Assembler.encode_s(
+                Opcode.STORE,
+                Assembler.store_instructions[mnemonic],
+                Assembler.get_register_number(rs1),
+                Assembler.get_register_number(rs2),
+                int(imm,0)
+            )
+
+        if mnemonic in Assembler.branch_instructions:
+            rs1, rs2, imm = args
+
+            return Assembler.encode_b(
+                Opcode.BRANCH,
+                Assembler.branch_instructions[mnemonic],
+                Assembler.get_register_number(rs1),
+                Assembler.get_register_number(rs2),
+                int(imm,0)
+            )
+
+        if mnemonic == "jal":
+            rd, imm, _ = args
+
+            return Assembler.encode_j(
+                Opcode.JAL,
+                Assembler.get_register_number(rd),
+                int(imm,0)
+            )
+
+        if mnemonic == "j":
+            imm = args[0]
+
+            return Assembler.encode_j(
+                Opcode.JAL,
+                0,
+                int(imm,0)
+            )
+
+        if mnemonic == "jalr":
+            rd, imm, rs1 = args
+
+            return Assembler.encode_i(
+                Opcode.JALR,
+                0,
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                int(imm,0)
+            )
+
+        raise ValueError(f"Unknown instruction: {mnemonic}")
+
+    @staticmethod
+    def assemble(code):
+        machine_code = []
+
+        for line_number, line in enumerate(code.splitlines(), 1):
+            instruction = Assembler.assemble_instruction(line)
+
+            if instruction is not None:
+                machine_code.append(instruction)
+
+        return machine_code
+
+    @staticmethod
+    def to_bytes(code):
+        code = Assembler.assemble(code)
+
+        result = bytearray()
+
+        for instruction in code:
+            result.extend(
+                instruction.to_bytes(4, byteorder="big")
+            )
+
+        return bytes(result)
+
+    @staticmethod
+    def to_hex(code):
+        code = Assembler.assemble(code)
+        result = []
+
+        for i, instruction in enumerate(code):
+            result.append(
+                f"{i * 4:08X}: {instruction:08X}"
+            )
+
+        return "\n".join(result)
+
+    @staticmethod
+    def from_bytes(data):
+        result = []
+
+        for i in range(0, len(data), 4):
+            instruction = int.from_bytes(
+                data[i:i + 4],
+                byteorder="big"
+            )
+
+            result.append(instruction)
+
+        return result
+
+    @staticmethod
+    def decode_u(instruction):
+        return {
+            "opcode": instruction & 0x7F,
+            "rd": (instruction >> 7) & 0x1F,
+            "imm": (instruction >> 12) & 0xFFFFF,
+        }
+
+
+    @staticmethod
+    def decode_r(instruction):
+        return {
+            "opcode": instruction & 0x7F,
+            "rd": (instruction >> 7) & 0x1F,
+            "funct3": (instruction >> 12) & 0x7,
+            "rs1": (instruction >> 15) & 0x1F,
+            "rs2": (instruction >> 20) & 0x1F,
+            "funct7": (instruction >> 25) & 0x7F,
+        }
+
+    @staticmethod
+    def decode_i(instruction):
+        imm = (instruction >> 20) & 0xFFF
+
+        if imm & 0x800:
+            imm -= 0x1000
+
+        return {
+            "opcode": instruction & 0x7F,
+            "rd": (instruction >> 7) & 0x1F,
+            "funct3": (instruction >> 12) & 0x7,
+            "rs1": (instruction >> 15) & 0x1F,
+            "imm": imm,
+        }
+
+    @staticmethod
+    def decode_s(instruction):
+        imm = (
+            (((instruction >> 25) & 0x7F) << 5)
+            | ((instruction >> 7) & 0x1F)
+        )
+
+        if imm & 0x800:
+            imm -= 0x1000
+
+        return {
+            "opcode": instruction & 0x7F,
+            "funct3": (instruction >> 12) & 0x7,
+            "rs1": (instruction >> 15) & 0x1F,
+            "rs2": (instruction >> 20) & 0x1F,
+            "imm": imm,
+        }
+
+    @staticmethod
+    def decode_j(instruction):
+        imm = (
+            (((instruction >> 31) & 0x1) << 20)
+            | (((instruction >> 21) & 0x3FF) << 1)
+            | (((instruction >> 20) & 0x1) << 11)
+            | (((instruction >> 12) & 0xFF) << 12)
+        )
+
+        if imm & 0x100000:
+            imm -= 0x200000
+
+        return {
+            "opcode": instruction & 0x7F,
+            "rd": (instruction >> 7) & 0x1F,
+            "imm": imm,
+        }
+
+    @staticmethod
+    def decode_b(instruction):
+        imm = (
+            (((instruction >> 31) & 0x1) << 12)
+            | (((instruction >> 25) & 0x3F) << 5)
+            | (((instruction >> 8) & 0xF) << 1)
+            | (((instruction >> 7) & 0x1) << 11)
+        )
+
+        if imm & 0x1000:
+            imm -= 0x2000
+
+        return {
+            "opcode": instruction & 0x7F,
+            "funct3": (instruction >> 12) & 0x7,
+            "rs1": (instruction >> 15) & 0x1F,
+            "rs2": (instruction >> 20) & 0x1F,
+            "imm": imm,
+        }

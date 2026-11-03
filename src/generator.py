@@ -2,41 +2,6 @@ class CodeGeneratorError(Exception):
     pass
 
 class CodeGenerator:
-    REGISTER_ALIASES = {
-        0: "zero",
-        1: "ra",
-        2: "sp",
-        3: "gb",
-        4: "tp",
-        5: "t0",
-        6: "t1",
-        7: "t2",
-        8: "s0",
-        9: "s1",
-        10: "a0",
-        11: "a1",
-        12: "a2",
-        13: "a3",
-        14: "a4",
-        15: "a5",
-        16: "a6",
-        17: "a7",
-        18: "s2",
-        19: "s3",
-        20: "s4",
-        21: "s5",
-        22: "s6",
-        23: "s7",
-        24: "s8",
-        25: "s9",
-        26: "s10",
-        27: "s11",
-        28: "t3",
-        29: "t4",
-        30: "t5",
-        31: "t6",
-    }
-
     def __init__(self):
         self.code = []
         self.data = []
@@ -57,6 +22,10 @@ class CodeGenerator:
         self.string_counter = 0
 
         self.loop_stack = []
+
+        self.INSTRUCTION_SIZE = 4
+        self.CODE_START = 0
+        self.DATA_START = 0
 
     def error(self, message, node=None):
         line = node.get("line")
@@ -83,9 +52,6 @@ class CodeGenerator:
         self.temp_stack_depth += 4
 
     def pop(self, register):
-        if self.temp_stack_depth < 4:
-            self.error("stack underflow")
-
         self.append(f"lw {register}, 0(sp)")
         self.append("addi sp, sp, 4")
         self.temp_stack_depth -= 4
@@ -178,31 +144,8 @@ class CodeGenerator:
         self.append(f"sw {high_register}, 0(t2)")
         self.append(f"sw {low_register}, 4(t2)")
 
-    def decode_char(self,value):
-        if len(value) == 1:
-            return ord(value)
-
-        if len(value) >= 2 and value[0] in ("'", '"'):
-            quote = value[0]
-
-            if value[-1] == quote:
-                inner = value[1:-1]
-
-                escapes = {
-                    r"\n": "\n",
-                    r"\r": "\r",
-                    r"\t": "\t",
-                    r"\0": "\0",
-                    r"\\": "\\",
-                    r"\'": "'",
-                    r'\"': '"',
-                }
-
-                if inner in escapes:
-                    return ord(escapes[inner])
-
-                if len(inner) == 1:
-                    return ord(inner)
+    def decode_char(self, value):
+        value = value[1:-1]
 
         escapes = {
             r"\n": "\n",
@@ -216,6 +159,9 @@ class CodeGenerator:
 
         if value in escapes:
             return ord(escapes[value])
+
+        if len(value) == 1:
+            return ord(value)
 
     def argument_slot_size(self, type_name):
         return max(4, self.type_size(type_name))
@@ -302,6 +248,9 @@ class CodeGenerator:
         for name, function_node in self.functions.items():
             self.generate_function(function_node)
 
+        code = self.resolve_code_addresses()
+        code = self.resolve_data_references(code)
+
         output = []
 
         if self.data:
@@ -309,7 +258,7 @@ class CodeGenerator:
             output.extend(self.data)
 
         output.append(".text")
-        output.extend(self.code)
+        output.extend(code)
 
         return "\n".join(output) + "\n"
 
@@ -556,8 +505,6 @@ class CodeGenerator:
                 self.data.append(f"{label}: .byte 0")
             elif type_name in ("int", "string") or self.is_array_type(type_name):
                 self.data.append(f"{label}: .word 0")
-            else:
-                self.error(f"Unsupported data type: {type_name}", node)
 
             if value is not None:
                 self.generate_expression(value)
@@ -674,23 +621,14 @@ class CodeGenerator:
             self.scopes.pop()
 
     def generate_continue(self, node):
-        if not self.loop_stack:
-            self.error("'continue' used outside a loop", node)
-
         start_label, _ = self.loop_stack[-1]
         self.append(f"j {start_label}")
 
     def generate_break(self, node):
-        if not self.loop_stack:
-            self.error("'break' used outside a loop", node)
-
         _, end_label = self.loop_stack[-1]
         self.append(f"j {end_label}")
 
     def generate_return(self, node):
-        if self.current_function is None:
-            self.error("'return' used outside a function", node)
-
         value = node.get("value")
 
         if value is not None:
@@ -707,11 +645,8 @@ class CodeGenerator:
         self.append(f"j {self.current_function_end}")
 
     def generate_output(self, value, node=None):
-        value_type = self.expression_type(value)
-        if value_type != "byte":
-            self.error("meow() expects a byte value", node or value)
         self.generate_expression(value)
-        self.append("out 0, t0")
+        self.append("out t0")
 
     def generate_expression(self, node):
         node_type = node.get("type")
@@ -757,16 +692,12 @@ class CodeGenerator:
             self.generate_function_call(node)
 
         elif node_type == "input":
-            self.append("in t0, 0")
+            self.append("in t0")
+            self.append("addi t1, zero, 0xFF")
+            self.append("and t0, t1")
 
         elif node_type == "array_creation":
             self.generate_array_creation(node)
-
-        else:
-            self.error(
-                f"Unsupported expression type: {node_type}",
-                node,
-            )
     
     def generate_string(self, value):
         label = f"string_{self.string_counter}"
@@ -782,13 +713,9 @@ class CodeGenerator:
         self.load_global_address("t0", label)
 
     def generate_unary(self, node):
-        operator = node["operator"]
         operand_type = self.expression_type(node["operand"])
 
         self.generate_expression(node["operand"])
-
-        if operator != "-":
-            self.error(f"Unsupported unary operator: {operator}", node)
 
         if self.base_type(operand_type) == "long":
             self.append("sub t1, zero, t1")
@@ -877,9 +804,6 @@ class CodeGenerator:
             self.append("slt t0, t0, t1")
             self.append("xori t0, t0, 1")
 
-        else:
-            self.error(f"Unsupported binary operator: {operator}", node)
-
 
     def generate_long_binary(self, node):
         operator = node["operator"]
@@ -967,12 +891,6 @@ class CodeGenerator:
             self.append("addi t0, zero, 1")
 
             self.append_label(end_label)
-
-        else:
-            self.error(
-                f"Long operator '{operator}' is not implemented",
-                node,
-            )
     
     def generate_array_address(self, node):
         array_node = node["array"]
@@ -1071,12 +989,6 @@ class CodeGenerator:
 
             elif base in ("int", "string") or self.is_array_type(item["type"]):
                 self.append("sw t0, 0(sp)")
-
-            else:
-                self.error(
-                    f"Unsupported argument type: {item['type']}",
-                    node,
-                )
 
         register_bytes = 0
 
@@ -1193,7 +1105,106 @@ class CodeGenerator:
 
             return "int"
 
-        self.error(
-            f"Cannot determine expression type for '{node_type}'",
-            node,
-        )
+    def get_code_addresses(self):
+        addresses = {}
+        address = 0
+
+        for line in self.code:
+            text = line.strip()
+
+            if text.endswith(":"):
+                label = text[:-1]
+                addresses[label] = address
+            else:
+                address += 4
+
+        return addresses
+
+    def resolve_code_addresses(self):
+        addresses = self.get_code_addresses()
+
+        result = []
+        address = 0
+
+        for line in self.code:
+            text = line.strip()
+
+            if text.endswith(":"):
+                continue
+
+            parts = text.split()
+            instruction = parts[0]
+
+            if instruction == "j":
+                label = parts[1]
+                parts[1] = str(addresses[label] - address)
+
+            elif instruction == "jal":
+                label = parts[2]
+                parts[2] = str(addresses[label] - address)
+
+            elif instruction in ("beq", "bne", "blt", "bge", "bltu"):
+                label = parts[3]
+                parts[3] = str(addresses[label] - address)
+
+            result.append(" ".join(parts))
+            address += 4
+
+        return result
+
+    def get_data_addresses(self):
+        addresses = {}
+        address = 0
+
+        for line in self.data:
+            label, directive = line.split(":", 1)
+            directive = directive.strip()
+
+            if directive.startswith(".byte"):
+                alignment = 1
+                size = len(directive[5:].split(","))
+
+            elif directive.startswith(".word"):
+                alignment = 4
+                size = 4
+
+            elif directive.startswith(".long"):
+                alignment = 8
+                size = 8
+
+            address = self.align_address(address, alignment)
+            addresses[label] = address
+            address += size
+
+        return addresses
+
+    def split_address(self, address):
+        upper = (address + 0x800) >> 12
+        lower = address - (upper << 12)
+
+        return upper, lower
+
+    def align_address(self, address, alignment):
+        return (address + alignment - 1) & ~(alignment - 1)
+
+    def resolve_data_references(self, code):
+        addresses = self.get_data_addresses()
+        result = []
+
+        for line in code:
+            parts = line.split()
+
+            for i, part in enumerate(parts):
+                if part.startswith("%hi(") and part.endswith(")"):
+                    label = part[4:-1]
+                    upper, _ = self.split_address(addresses[label])
+                    parts[i] = str(upper)
+
+                elif part.startswith("%lo(") and part.endswith(")"):
+                    label = part[4:-1]
+                    _, lower = self.split_address(addresses[label])
+                    parts[i] = str(lower)
+
+            result.append(" ".join(parts))
+
+        return result
