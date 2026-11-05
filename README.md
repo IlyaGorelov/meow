@@ -510,39 +510,7 @@ The conditional branch range is ±4 KiB. The lowest bit is ALWAYS 0.
 
 ### ControlUnit
 
-```text
-   ┌─────────────────(+1)───────┐
-   │                             │
-   │    latch_program_counter    │
-   │                  │          │
-   │   ┌─────┐        ▼          │
-   └──►│     │     ┌─────────┐   │    ┌─────────┐
-       │ MUX │────►│ program │───┴───►│ program │
-   ┌──►│     │     │ counter │        │ memory  │
-   │   └─────┘     └─────────┘        └─────────┘
-   │      ▲                               │
-   │      │ sel_next                      │ current instruction
-   │      │                               │
-   └──────────────(select-arg)────────────┘
-          │                               │      ┌─────────┐
-          │                               │      │  step   │
-          │                               │  ┌───│ counter │
-          │                               │  │   └─────────┘
-          │                               ▼  ▼        ▲
-          │                       ┌─────────────┐     │
-          └───────────────────────│ instruction │─────┘
-                                  │   decoder   │
-                                  │             │◄───────┐
-                                  └─────────────┘        │
-                                          │              │
-                                          │ signals      │
-                                          ▼              │
-                                    ┌──────────┐  zero   │
-                                    │          │─────────┘
-                                    │ DataPath │
-                     input ─────────►          ├─────────► output
-                                    └──────────┘
-```
+<img src="controlunit.png" />
 
 Реализован в классе `ControlUnit`.
 

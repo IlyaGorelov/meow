@@ -23,10 +23,6 @@ class CodeGenerator:
 
         self.loop_stack = []
 
-        self.INSTRUCTION_SIZE = 4
-        self.CODE_START = 0
-        self.DATA_START = 0
-
     def error(self, message, node=None):
         line = node.get("line")
 
@@ -236,6 +232,7 @@ class CodeGenerator:
 
         self.append_label("_start")
         self.append("lui s1, 1") # init heap pointer
+        self.append("lui sp, 3") # init heap pointer
 
         for node in body:
             if node.get("type") == "function":
