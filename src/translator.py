@@ -31,7 +31,7 @@ def main(source, target):
     if target.endswith(".bin"):
         with open(target, "wb") as f:
             f.write(binary)
-        with open(target+"_data", "wb") as f:
+        with open(target.replace(".bin", "_data.bin"), "wb") as f:
             f.write(binary_data)
         with open(target + ".hex", "w") as f:
             f.write(hex)

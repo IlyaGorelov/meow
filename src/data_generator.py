@@ -26,24 +26,14 @@ class DataGenerator:
         self.data = bytearray()
         self.labels = {}
 
-        in_data = False
-
         for line_number, line in enumerate(code.splitlines(), 1):
             line = line.strip()
 
-            if not line:
-                continue
-
             if line == ".data":
-                in_data = True
                 continue
 
             if line == ".text":
-                in_data = False
-                continue
-
-            if not in_data:
-                continue
+                break
 
             if ":" in line:
                 label, line = line.split(":", 1)
@@ -62,3 +52,7 @@ class DataGenerator:
 
     def get_label_address(self, label, base_address=0):
         return base_address + self.labels[label]
+
+    @staticmethod
+    def from_bytes(data):
+        return bytearray(data)
