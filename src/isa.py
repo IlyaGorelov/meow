@@ -109,6 +109,7 @@ class Assembler:
     # I-type: funct3
     i_instructions = {
         "addi":  0b000,
+        "slti":  0b010,
         "sltiu": 0b011,
         "xori":  0b100,
     }
@@ -441,12 +442,56 @@ class Assembler:
         result = []
 
         for i in range(0, len(data), 4):
+            if i + 4 > len(data):
+                raise ValueError("Incomplete instruction (expected 4 bytes)")
+
             instruction = int.from_bytes(
                 data[i:i + 4],
                 byteorder="big"
             )
 
-            result.append(instruction)
+            opcode = instruction & 0x7F
+
+            if opcode == opcode_to_binary[Opcode.LUI]:
+                decoded = Assembler.decode_u(instruction)
+
+            elif opcode == opcode_to_binary[Opcode.OP]:
+                decoded = Assembler.decode_r(instruction)
+
+            elif opcode in (
+                opcode_to_binary[Opcode.OPIMM],
+                opcode_to_binary[Opcode.LOAD],
+                opcode_to_binary[Opcode.JALR],
+            ):
+                decoded = Assembler.decode_i(instruction)
+
+            elif opcode == opcode_to_binary[Opcode.STORE]:
+                decoded = Assembler.decode_s(instruction)
+
+            elif opcode == opcode_to_binary[Opcode.JAL]:
+                decoded = Assembler.decode_j(instruction)
+
+            elif opcode == opcode_to_binary[Opcode.BRANCH]:
+                decoded = Assembler.decode_b(instruction)
+
+            elif opcode in (
+                opcode_to_binary[Opcode.IN],
+                opcode_to_binary[Opcode.OUT],
+            ):
+                decoded = Assembler.decode_r(instruction)
+
+            elif opcode == opcode_to_binary[Opcode.HALT]:
+                decoded = Assembler.decode_u(instruction)
+
+            else:
+                raise ValueError(f"Unknown opcode: {opcode:#x}")
+
+            decoded["index"] = i // 4
+            decoded["opcode"] = Opcode(
+                binary_to_opcode[opcode]
+            )
+
+            result.append(decoded)
 
         return result
 

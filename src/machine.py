@@ -2,22 +2,15 @@ import logging
 import sys
 
 from data_path import DataPath
-from isa import from_bytes
+from control_unit import ControlUnit
+from isa import Assembler, Opcode
+from microcode_mem import *
+
+microcode = setup_micro_memory()
 
 def simulation(code, data, input_tokens, data_memory_size, limit):
-    """Подготовка модели и запуск симуляции процессора.
-
-    Длительность моделирования ограничена:
-
-    - количеством выполненных тактов (`limit`);
-
-    - количеством данных ввода (`input_tokens`, если ввод используется), через
-      исключение `EOFError`;
-
-    - инструкцией `Halt`, через исключение `StopIteration`.
-    """
     data_path = DataPath(data_memory_size, data, input_tokens)
-    control_unit = ControlUnit(code, data_path)
+    control_unit = ControlUnit(code, data_path, microcode)
 
     logging.debug("%s", control_unit)
     try:
@@ -38,11 +31,11 @@ def simulation(code, data, input_tokens, data_memory_size, limit):
 def main(code_file, data_file, input_file):
     with open(code_file, "rb") as file:
         binary_code = file.read()
-    code = from_bytes(binary_code)
+    code = Assembler.from_bytes(binary_code)
 
     with open(data_file, "rb") as file:
         binary_code = file.read()
-    data = from_bytes(binary_code)
+    data = binary_code
 
     with open(input_file, encoding="utf-8") as file:
         input_text = file.read()
@@ -64,6 +57,6 @@ def main(code_file, data_file, input_file):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
-    assert len(sys.argv) == 3, "Wrong arguments: machine.py <code_file> <input_file>"
-    _, code_file, input_file = sys.argv
-    main(code_file, input_file)
+    assert len(sys.argv) == 4, "Wrong arguments: machine.py <code_file> <data_file> <input_file>"
+    _, code_file, data_file, input_file = sys.argv
+    main(code_file, data_file, input_file)

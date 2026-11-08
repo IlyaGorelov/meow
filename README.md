@@ -292,42 +292,42 @@
 
 #### Register-Immediate Instructions
 
-| Инструкция              | Кол-во тактов | Описание                                                                                                                                  |
-| ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `addi <rd>, <rs1>, <k>` | 1             | adds the sign-extended 12-bit immediate to register rs1                                                                                   |
-| `slti <rd>, <rs1>`      | 1             | places the value 1 in rd if rs1 is less than the sign-extended immediate when both are treated as signed numbers, else 0 is written to rd |
-| `lui <rd>, <k>`         | 1             | places the 32-bit U-immediate value into the destination register rd, filling in the lowest 12 bits with zeros                            |
-| `mv <rd>, <rs>`         | 1             | Скопировать значение из регистра `rs` в регистр `rd` . Encoded like `addi`                                                                |
-| `xori <rd>, <rs1>, <k>` | 1             |                                                                                                                                           |
-| `sltiu rd, rs1, imm`    | 1             |                                                                                                                                           |
+| Инструкция                | Кол-во тактов | Описание                                          |
+| ------------------------- | ------------- | ------------------------------------------------- |
+| `addi <rd>, <rs1>, <imm>` | 1             | `rd = rs1 + imm`                                  |
+| `slti <rd>, <rs1>, <imm>` | 1             | `rd = (rs1 < imm) ? 1 : 0`                        |
+| `lui <rd>, <imm>`         | 1             | loads 20-bit immediate into upper 20 bits of `rd` |
+| `mv <rd>, <rs>`           | 1             | `rd = rs`                                         |
+| `xori <rd>, <rs1>, <imm>` | 1             | `rd = rs1 xor imm`                                |
+| `sltiu rd, rs1, imm`      | 1             | works like `slti`, but comparison is unsigned     |
 
 #### Register-Register Instructions
 
-| Инструкция                | Кол-во тактов | Описание                                                                                                         |
-| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `add <rd>, <rs1>, <rs2>`  | 1             | performs the addition of rs1 and rs2                                                                             |
-| `sub <rd>, <rs1>, <rs2>`  | 1             | performs the subtraction of rs2 from rs1                                                                         |
-| `slt <rd>, <rs1>, <rs2>`  | 1             | performs signed compare, writing 1 to rd if rs1 < rs2, 0 otherwise                                               |
-| `sltu <rd>, <rs1>, <rs2>` | 1             | performs unsigned compare, writing 1 to rd if rs1 < rs2, 0 otherwise                                             |
-| `and <rd>, <rs1>, <rs2>`  | 1             | bitwise logical and                                                                                              |
-| `or <rd>, <rs1>, <rs2>`   | 1             | bitwise logical or                                                                                               |
-| `xor <rd>, <rs1>, <rs2>`  | 1             | bitwise logical xor                                                                                              |
-| `sll <rd>, <rs1>, <rs2>`  | 1             | logical shift left on the value in register rs1 by the shift amount held in the lower 5 bits of register rs2     |
-| `srl <rd>, <rs1>, <rs2>`  | 1             | logical right shift on the value in register rs1 by the shift amount held in the lower 5 bits of register rs2    |
-| `sra <rd>, <rs1>, <rs2>`  | 1             | arithmetic right shift on the value in register rs1 by the shift amount held in the lower 5 bits of register rs2 |
-| `mul <rd>, <rs1>, <rs2>`  | 3             | Умножить значения `rs1` и `rs2`, результат записать в `rd`                                                       |
-| `mulh <rd>, <rs1>, <rs2>` | 3             | Умножить значения `rs1` и `rs2`, записать старшие 32 бита результата в `rd`                                      |
-| `div <rd>, <rs1>, <rs2>`  | 8             | Разделить значение `rs1` на `rs2`, результат записать в `rd`                                                     |
-| `rem <rd>, <rs1>, <rs2>`  | 8             | Вычислить остаток от деления `rs1` на `rs2`, результат записать в `rd`                                           |
+| Инструкция          | Кол-во тактов | Описание                               |
+| ------------------- | ------------- | -------------------------------------- |
+| `add rd, rs1, rs2`  | 1             | `rd = rs1 + rs2`                       |
+| `sub rd, rs1, rs2`  | 1             | `rd = rs1 - rs2`                       |
+| `slt rd, rs1, rs2`  | 1             | `rd = rs1 < rs2 ? 1 : 0`               |
+| `sltu rd, rs1, rs2` | 1             | like `slt`, but comparison is unsigned |
+| `and rd, rs1, rs2`  | 1             | `rd = rs1 & rs2`                       |
+| `or rd, rs1, rs2`   | 1             | `rd = rs1 \| rs2`                      |
+| `xor rd, rs1, rs2`  | 1             | `rd = rs1 XOR rs2`                     |
+| `sll rd, rs1, rs2`  | 1             | `rd = rs1 << rs2[4:0]` (logical)       |
+| `srl rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (logical)       |
+| `sra rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (arithmetic)    |
+| `mul rd, rs1, rs2`  | 1             | `rd = (rs1 * rs2)[31:0]`               |
+| `mulh rd, rs1, rs2` | 1             | `rd = (rs1 * rs2)[63:32]`              |
+| `div rd, rs1, rs2`  | 1             | `rd = rs1 / rs2`                       |
+| `rem rd, rs1, rs2`  | 1             | `rd = rs1 % rs2`                       |
 
 #### Unconditional Flow Controls
 
-| Инструкция NOP         | Кол-во тактов | Описание                                                                                                                                                                                         |
-| ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `jal <rd>, <k>`        | 2             | The offset is sign-extended and added to the address of the jump instruction to form the jump target address. stores the address of the instruction following the jump ('pc'+4) into register rd |
-| `jalr rd, offset(rs1)` | 2             |                                                                                                                                                                                                  |
-| `j <k>`                | 1             | Do `jal` without saving return address k`                                                                                                                                                        |
-| `halt`                 | 0             | Halts the program                                                                                                                                                                                |
+| Инструкция NOP         | Кол-во тактов | Описание                          |
+| ---------------------- | ------------- | --------------------------------- |
+| `jal <rd>, <imm>`      | 1             | 1. `rd = pc` 2. `pc+=imm`         |
+| `jalr rd, offset(rs1)` | 1             | 1. `rd = pc` 2. `pc=rs1 + offset` |
+| `j <k>`                | 1             | `jal <zero>, <imm>`               |
+| `halt`                 | 1             |                                   |
 
 #### Conditional Branches
 
@@ -342,17 +342,17 @@
 
 | Инструкция NOP              | Кол-во тактов | Описание                                  |
 | --------------------------- | ------------- | ----------------------------------------- |
-| `sw <rs2>, <offset>(<rs1>)` | 3             | stores a 32-bit value from memory into rd |
-| `sb <rs2>, <offset>(<rs1>)` | 2             | stores a 8-bit value from memory into rd  |
-| `lw <rd>, <offset>(<rs1>)`  | 3             | loads a 32-bit value from memory into rd  |
+| `sw <rs2>, <offset>(<rs1>)` | 2             | stores a 32-bit value from rd into memory |
+| `sb <rs2>, <offset>(<rs1>)` | 2             | stores a 8-bit value from rd into memory  |
+| `lw <rd>, <offset>(<rs1>)`  | 2             | loads a 32-bit value from memory into rd  |
 | `lb <rd>, <offset>(<rs1>)`  | 2             | loads a 8-bit value from memory into rd   |
 
 #### Input and Output Instructions
 
-| Инструкция NOP | Кол-во тактов | Описание                                |
-| -------------- | ------------- | --------------------------------------- |
-| `in <rd>, n`   | 3             | reads data from input device #n into rd |
-| `out n, <rd>`  | 2             | writes data from rd to output device #n |
+| Инструкция NOP | Кол-во тактов | Описание |
+| -------------- | ------------- | -------- |
+| `in <rd>`      | 1             |          |
+| `out <rd>`     | 1             |          |
 
 ### Кодирование инструкций
 

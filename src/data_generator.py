@@ -52,7 +52,3 @@ class DataGenerator:
 
     def get_label_address(self, label, base_address=0):
         return base_address + self.labels[label]
-
-    @staticmethod
-    def from_bytes(data):
-        return bytearray(data)

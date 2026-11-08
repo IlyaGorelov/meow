@@ -1,5 +1,3 @@
-from data_generator import from_bytes
-
 class DataPath:
     def __init__(self, data_memory_size, data, input_buffer):
         assert data_memory_size > 0, "Data_memory size should be non-zero"
@@ -18,13 +16,11 @@ class DataPath:
         self.alu_right = 0
         self.alu_result = 0
 
-        initiated_mem = bytearray(from_bytes(data))
+        assert len(data) <= data_memory_size
 
-        assert len(initiated_mem) <= data_memory_size
-
-        self.data_memory = initiated_mem
+        self.data_memory = data
         self.data_memory.extend(
-            b"\x00" * (data_memory_size - len(initiated_mem))
+            b"\x00" * (data_memory_size - len(data))
         )
 
         self.input_buffer = input_buffer
@@ -33,7 +29,7 @@ class DataPath:
 
     
     def latch_pc(self, pc_sel):
-        if pc_sel == "next":
+        if pc_sel == "next_pc":
             self.pc = (self.pc + 4) & 0xFFFFFFFF
         elif pc_sel == "alu":
             self.pc = self.alu_result & 0xFFFFFFFF
@@ -63,7 +59,7 @@ class DataPath:
             value = self.data_read(1)
 
         elif reg_write_sel == "pc":
-            value = self.pc + 4
+            value = self.pc
 
         elif reg_write_sel == "input":
             value = self.input_data
@@ -184,19 +180,10 @@ class DataPath:
 
         return data
 
-    def data_write(self, data_size, data_write_sel):
+    def data_write(self, data_size):
         assert data_size in (1, 4)
 
-        if data_write_sel == "reg2":
-            value = self.reg2
-
-        elif data_write_sel == "alu":
-            value = self.alu_result
-
-        else:
-            raise ValueError(
-                "Incorrect data_write_sel: {}".format(data_write_sel)
-            )
+        value = self.reg2
 
         value &= (1 << (data_size * 8)) - 1
 
