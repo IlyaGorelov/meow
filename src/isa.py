@@ -305,14 +305,24 @@ class Assembler:
 
             opcode = Opcode.IN if mnemonic == "in" else Opcode.OUT
 
-            return Assembler.encode_r(
-                opcode,
-                0,
-                0,
-                Assembler.get_register_number(rd),
-                Assembler.get_register_number(rs1),
-                Assembler.get_register_number(rs2)
-            )
+            if opcode == Opcode.IN:
+                return Assembler.encode_r(
+                    opcode,
+                    0,
+                    0,
+                    Assembler.get_register_number(rd),
+                    Assembler.get_register_number(rs1),
+                    Assembler.get_register_number(rs2)
+                )
+            else:
+                return Assembler.encode_r(
+                    opcode,
+                    0,
+                    0,
+                    Assembler.get_register_number(rs1),
+                    Assembler.get_register_number(rd),
+                    Assembler.get_register_number(rs2)
+                )
 
         if mnemonic in Assembler.i_instructions:
             rd, rs1, imm = args

@@ -30,7 +30,7 @@ class ALU_RIGHT(IntEnum):
 
 class REG_WRITE(IntEnum):
     NONE = 0
-    ALU_RES = 1
+    ALU = 1
     MEM_W = 2
     MEM_B = 3
     NEXT_PC = 4
@@ -87,7 +87,7 @@ def decode(microinstruction):
         return {
             "next":      (microinstruction >> 34) & 0xFF,
             "alu_op":    (microinstruction >> 30) & 0xF,
-            "alu_cond":    (microinstruction >> 28) & 0x4,
+            "cond":    (microinstruction >> 28) & 0x3,
             "alu_left":  (microinstruction >> 25) & 0x7,
             "alu_right": (microinstruction >> 22) & 0x7,
             "reg_write": (microinstruction >> 19) & 0x7,
@@ -96,458 +96,218 @@ def decode(microinstruction):
             "ctrl":      (microinstruction >> 4) & 0x1FF,
         }
 
+
 def setup_micro_memory():
     microcode = []
+    descriptions = []
+    addresses = {}
 
-    #fetch
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NEXT_PC,
-                            CTRL.DISPATCH))
-    # -------------------------
-    # Immmediate instr.
+    def add_microinstruction(
+        description,
+        next_addr=0,
+        alu_op=ALU_OP.NONE,
+        alu_cond=COND.NONE,
+        alu_left=ALU_LEFT.NONE,
+        alu_right=ALU_RIGHT.NONE,
+        reg_write=REG_WRITE.NONE,
+        mem=MEM.NONE,
+        pc=PC.NONE,
+        ctrl=CTRL.NONE
+    ):
+        index = len(microcode)
 
-    #addi
-    microcode.append(encode(0,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
+        microcode.append(encode(
+            next_addr,
+            alu_op,
+            alu_cond,
+            alu_left,
+            alu_right,
+            reg_write,
+            mem,
+            pc,
+            ctrl
+        ))
 
-    #slti
-    microcode.append(encode(0,
-                            ALU_OP.SLT,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
+        descriptions.append(description)
 
-    #lui
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.ZERO,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+        return index
 
-    #xori
-    microcode.append(encode(0,
-                            ALU_OP.XOR,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    addresses["FETCH"] = add_microinstruction(
+        "FETCH",
+        pc=PC.NEXT_PC,
+        ctrl=CTRL.DISPATCH
+    )
 
-    #sltiu
-    microcode.append(encode(0,
-                            ALU_OP.SLTU,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    addresses["ADDI"] = add_microinstruction(
+        "ADDI, goto FETCH",
+        alu_op=ALU_OP.ADD,
+        alu_left=ALU_LEFT.REG1,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.ALU,
+        ctrl=CTRL.REG1_SEL
+    )
 
-    #add
-    microcode.append(encode(0,
-                            ALU_OP.SLTU,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-    #------------
-    # Reg to reg instr
+    addresses["SLTI"] = add_microinstruction(
+        "SLTI, goto FETCH",
+        alu_op=ALU_OP.SLT,
+        alu_left=ALU_LEFT.REG1,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.ALU,
+        ctrl=CTRL.REG1_SEL
+    )
 
-    # add rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["LUI"] = add_microinstruction(
+        "LUI, goto FETCH",
+        alu_left=ALU_LEFT.ZERO,
+        alu_right=ALU_RIGHT.IMM,
+        alu_op=ALU_OP.ADD,
+        reg_write=REG_WRITE.ALU
+    )
 
-    # sub rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SUB,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["XORI"] = add_microinstruction(
+        "XORI, goto FETCH",
+        alu_op=ALU_OP.XOR,
+        alu_left=ALU_LEFT.REG1,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.ALU,
+        ctrl=CTRL.REG1_SEL
+    )
 
-    # slt rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SLT,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["SLTIU"] = add_microinstruction(
+        "SLTIU, goto FETCH",
+        alu_op=ALU_OP.SLTU,
+        alu_left=ALU_LEFT.REG1,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.ALU,
+        ctrl=CTRL.REG1_SEL
+    )
 
-    # sltu rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SLTU,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    reg_instructions = [
+        ("ADD", ALU_OP.ADD),
+        ("SUB", ALU_OP.SUB),
+        ("SLT", ALU_OP.SLT),
+        ("SLTU", ALU_OP.SLTU),
+        ("AND", ALU_OP.AND),
+        ("OR", ALU_OP.OR),
+        ("XOR", ALU_OP.XOR),
+        ("SLL", ALU_OP.SLL),
+        ("SRL", ALU_OP.SRL),
+        ("SRA", ALU_OP.SRA),
+    ]
 
-    # and rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.AND,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    for name, operation in reg_instructions:
+        addresses[name] = add_microinstruction(
+            f"{name}, goto FETCH",
+            alu_op=operation,
+            alu_left=ALU_LEFT.REG1,
+            alu_right=ALU_RIGHT.REG2,
+            reg_write=REG_WRITE.ALU,
+            ctrl=CTRL.REG1_SEL | CTRL.REG2_SEL
+        )
 
-    # or rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.OR,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["JAL"] = add_microinstruction(
+        "JAL, goto FETCH",
+        alu_op=ALU_OP.ADD,
+        alu_left=ALU_LEFT.PC,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.NEXT_PC,
+        pc=PC.ALU
+    )
 
-    # xor rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.XOR,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["JALR"] = add_microinstruction(
+        "JALR, goto FETCH",
+        alu_op=ALU_OP.ADD,
+        alu_left=ALU_LEFT.REG1,
+        alu_right=ALU_RIGHT.IMM,
+        reg_write=REG_WRITE.NEXT_PC,
+        pc=PC.ALU,
+        ctrl=CTRL.REG1_SEL
+    )
 
-    # sll rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SLL,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    addresses["HALT"] = add_microinstruction(
+        "HALT",
+        pc=PC.ALU,
+        ctrl=CTRL.HALT
+    )
 
-    # srl rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SRL,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+    def add_branch(name, operation, condition):
+        branch_addr = add_microinstruction(
+            f"{name}: compare registers",
+            alu_cond=condition,
+            alu_op=operation,
+            alu_left=ALU_LEFT.REG1,
+            alu_right=ALU_RIGHT.REG2,
+            ctrl=CTRL.REG1_SEL | CTRL.REG2_SEL
+        )
 
-    # sra rd, rs1, rs2
-    microcode.append(encode(0,
-                            ALU_OP.SRA,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.ALU_RES,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG1_SEL | CTRL.REG2_SEL))
+        add_microinstruction(
+            f"{name}: branch not taken, goto FETCH"
+        )
 
-    # unconditional flow controls
-    # jal
-    microcode.append(encode(0,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.PC,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NEXT_PC,
-                            MEM.NONE,
-                            PC.ALU,
-                            CTRL.NONE))
+        taken_addr = add_microinstruction(
+            f"{name}: PC += immediate, goto FETCH",
+            alu_op=ALU_OP.ADD,
+            alu_left=ALU_LEFT.PC,
+            alu_right=ALU_RIGHT.IMM,
+            pc=PC.ALU
+        )
 
-    # jalr
-    microcode.append(encode(0,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NEXT_PC,
-                            MEM.NONE,
-                            PC.ALU,
-                            CTRL.REG1_SEL))
+        microcode[branch_addr] = encode(
+            taken_addr,
+            operation,
+            condition,
+            ALU_LEFT.REG1,
+            ALU_RIGHT.REG2,
+            REG_WRITE.NONE,
+            MEM.NONE,
+            PC.NONE,
+            CTRL.REG1_SEL | CTRL.REG2_SEL
+        )
 
-    # halt
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.ALU,
-                            CTRL.HALT))
+        addresses[name] = branch_addr
+        return branch_addr
 
-    # branches
+    add_branch("BLT", ALU_OP.SLT, COND.NOT_ZERO)
+    add_branch("BLTU", ALU_OP.SLTU, COND.NOT_ZERO)
+    add_branch("BGE", ALU_OP.SLT, COND.ZERO)
+    add_branch("BEQ", ALU_OP.SUB, COND.ZERO)
+    add_branch("BNE", ALU_OP.SUB, COND.NOT_ZERO)
 
-    # blt
-    microcode.append(encode(22,
-                            ALU_OP.SLT,
-                            COND.NOT_ZERO,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    def add_memory_instruction(name, mem_operation, write_operation):
+        address = add_microinstruction(
+            f"{name}: AR = rs1 + imm, goto MEMORY OPERATION",
+            next_addr=len(microcode) + 1,
+            alu_op=ALU_OP.ADD,
+            alu_left=ALU_LEFT.REG1,
+            alu_right=ALU_RIGHT.IMM,
+            mem=MEM.LATCH_AR,
+            ctrl=CTRL.REG1_SEL
+        )
 
-    # jump to microinstr[0]
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+        add_microinstruction(
+            f"{name}: MEMORY OPERATION",
+            alu_left=ALU_LEFT.ZERO,
+            alu_right=ALU_RIGHT.REG2,
+            reg_write=write_operation,
+            mem=mem_operation,
+            ctrl=CTRL.REG2_SEL if mem_operation != MEM.NONE else CTRL.REG2_SEL
+        )
 
-    # microcode[22]
-    microcode.append(encode(0,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.PC,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.ALU,
-                            CTRL.NONE))
+        addresses[name] = address
 
-    microcode.append(encode(22,
-                            ALU_OP.SLTU,
-                            COND.ZERO,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    add_memory_instruction("SW", MEM.WRITE_W, REG_WRITE.NONE)
+    add_memory_instruction("SB", MEM.WRITE_B, REG_WRITE.NONE)
+    add_memory_instruction("LW", MEM.NONE, REG_WRITE.MEM_W)
+    add_memory_instruction("LB", MEM.NONE, REG_WRITE.MEM_B)
 
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    addresses["IN"] = add_microinstruction(
+        "IN",
+        reg_write=REG_WRITE.IN
+    )
 
-    # bge
-    microcode.append(encode(22,
-                            ALU_OP.SLT,
-                            COND.ZERO,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
+    addresses["OUT"] = add_microinstruction(
+        "OUT",
+        ctrl=CTRL.OUTPUT | CTRL.REG1_SEL
+    )
 
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-    # beq
-    microcode.append(encode(22,
-                            ALU_OP.SUB,
-                            COND.ZERO,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-    # bne
-    microcode.append(encode(22,
-                            ALU_OP.SUB,
-                            COND.NOT_ZERO,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-
-    # load and store
-
-    # sw
-    microcode.append(encode(30,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NONE,
-                            MEM.LATCH_AR,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.ZERO,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.WRITE_W,
-                            PC.NONE,
-                            CTRL.REG2_SEL))
-
-    # sb
-    microcode.append(encode(32,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NONE,
-                            MEM.LATCH_AR,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.ZERO,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.NONE,
-                            MEM.WRITE_B,
-                            PC.NONE,
-                            CTRL.REG2_SEL))
-
-    # lw
-    microcode.append(encode(34,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NONE,
-                            MEM.LATCH_AR,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.ZERO,
-                            ALU_RIGHT.REG2,
-                            REG_WRITE.MEM_W,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG2_SEL))
-
-    # lb
-    microcode.append(encode(34,
-                            ALU_OP.ADD,
-                            COND.NONE,
-                            ALU_LEFT.REG1,
-                            ALU_RIGHT.IMM,
-                            REG_WRITE.NONE,
-                            MEM.LATCH_AR,
-                            PC.NONE,
-                            CTRL.REG1_SEL))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.MEM_B,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.REG2_SEL))
-
-    # IO
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.IN,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.NONE))
-
-    microcode.append(encode(0,
-                            ALU_OP.NONE,
-                            COND.NONE,
-                            ALU_LEFT.NONE,
-                            ALU_RIGHT.NONE,
-                            REG_WRITE.NONE,
-                            MEM.NONE,
-                            PC.NONE,
-                            CTRL.OUTPUT | CTRL.REG1_SEL))
-
-    return microcode
+    return (microcode, descriptions, addresses)

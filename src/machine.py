@@ -6,11 +6,10 @@ from control_unit import ControlUnit
 from isa import Assembler, Opcode
 from microcode_mem import *
 
-microcode = setup_micro_memory()
 
 def simulation(code, data, input_tokens, data_memory_size, limit):
     data_path = DataPath(data_memory_size, data, input_tokens)
-    control_unit = ControlUnit(code, data_path, microcode)
+    control_unit = ControlUnit(code, data_path)
 
     logging.debug("%s", control_unit)
     try:
@@ -20,6 +19,7 @@ def simulation(code, data, input_tokens, data_memory_size, limit):
     except EOFError:
         logging.warning("Input buffer is empty!")
     except StopIteration:
+        data_path.print_data_memory()
         pass
 
     if control_unit._tick >= limit:
@@ -47,12 +47,13 @@ def main(code_file, data_file, input_file):
         code,
         data,
         input_tokens=input_token,
-        data_memory_size=100,
+        data_memory_size=400,
         limit=2000,
     )
 
     print("".join(output))
     print("ticks:", ticks)
+
 
 
 if __name__ == "__main__":

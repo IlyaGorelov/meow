@@ -38,11 +38,6 @@ def main(source, target):
         with open(target + ".asm", "w") as f:
             f.write(code)
 
-    # Обратите внимание, что память данных не экспортируется в файл, так как
-    # в случае brainfuck она может быть инициализирована только 0.
-    # print("source LoC:", len(source.split("\n")), "code instr:", len(code))
-
-
 if __name__ == "__main__":
     assert len(sys.argv) == 3, "Wrong arguments: translator.py <input_file> <target_file>"
     _, source, target = sys.argv

@@ -2,54 +2,62 @@ from microcode_mem import *
 from data_path import DataPath
 from isa import Opcode, opcode_to_binary
 
+microcode_data = setup_micro_memory()
+
 class ControlUnit:
+    addresses = microcode_data[2]
+
     dispatch_table = {
         # Immediate instructions
-        (Opcode.OPIMM, 0b000): 1,  # addi
-        (Opcode.OPIMM, 0b010): 2,  # slti
-        Opcode.LUI: 3,
-        (Opcode.OPIMM, 0b100): 4,  # xori
-        (Opcode.OPIMM, 0b011): 5,  # sltiu
+        (Opcode.OPIMM, 0b000): addresses["ADDI"],
+        (Opcode.OPIMM, 0b010): addresses["SLTI"],
+        Opcode.LUI: addresses["LUI"],
+        (Opcode.OPIMM, 0b100): addresses["XORI"],
+        (Opcode.OPIMM, 0b011): addresses["SLTIU"],
 
-        # Register-register instructions
-        (Opcode.OP, 0b000, 0b0000000): 7,   # add
-        (Opcode.OP, 0b000, 0b0100000): 8,   # sub
-        (Opcode.OP, 0b010, 0b0000000): 9,   # slt
-        (Opcode.OP, 0b011, 0b0000000): 10,  # sltu
-        (Opcode.OP, 0b111, 0b0000000): 11,  # and
-        (Opcode.OP, 0b110, 0b0000000): 12,  # or
-        (Opcode.OP, 0b100, 0b0000000): 13,  # xor
-        (Opcode.OP, 0b001, 0b0000000): 14,  # sll
-        (Opcode.OP, 0b101, 0b0000000): 15,  # srl
-        (Opcode.OP, 0b101, 0b0100000): 16,  # sra
+        # Register instructions
+        (Opcode.OP, 0b000, 0b0000000): addresses["ADD"],
+        (Opcode.OP, 0b000, 0b0100000): addresses["SUB"],
+        (Opcode.OP, 0b010, 0b0000000): addresses["SLT"],
+        (Opcode.OP, 0b011, 0b0000000): addresses["SLTU"],
+        (Opcode.OP, 0b111, 0b0000000): addresses["AND"],
+        (Opcode.OP, 0b110, 0b0000000): addresses["OR"],
+        (Opcode.OP, 0b100, 0b0000000): addresses["XOR"],
+        (Opcode.OP, 0b001, 0b0000000): addresses["SLL"],
+        (Opcode.OP, 0b101, 0b0000000): addresses["SRL"],
+        (Opcode.OP, 0b101, 0b0100000): addresses["SRA"],
 
         # Jumps
-        Opcode.JAL: 17,
-        Opcode.JALR: 18,
+        Opcode.JAL: addresses["JAL"],
+        Opcode.JALR: addresses["JALR"],
 
         # Halt
-        Opcode.HALT: 19,
+        Opcode.HALT: addresses["HALT"],
 
         # Branches
-        (Opcode.BRANCH, 0b100): 20,  # blt
-        (Opcode.BRANCH, 0b110): 23,  # bltu
-        (Opcode.BRANCH, 0b101): 25,  # bge
-        (Opcode.BRANCH, 0b000): 27,  # beq
-        (Opcode.BRANCH, 0b001): 29,  # bne
+        (Opcode.BRANCH, 0b100): addresses["BLT"],
+        (Opcode.BRANCH, 0b110): addresses["BLTU"],
+        (Opcode.BRANCH, 0b101): addresses["BGE"],
+        (Opcode.BRANCH, 0b000): addresses["BEQ"],
+        (Opcode.BRANCH, 0b001): addresses["BNE"],
 
         # Loads and stores
-        (Opcode.STORE, 0b010): 31,  # sw
-        (Opcode.STORE, 0b000): 33,  # sb
-        (Opcode.LOAD, 0b010): 35,   # lw
-        (Opcode.LOAD, 0b000): 37,   # lb
+        (Opcode.STORE, 0b010): addresses["SW"],
+        (Opcode.STORE, 0b000): addresses["SB"],
+        (Opcode.LOAD, 0b010): addresses["LW"],
+        (Opcode.LOAD, 0b000): addresses["LB"],
+
+        # IO
+        Opcode.IN: addresses["IN"],
+        Opcode.OUT: addresses["OUT"]
     }
 
-    def __init__(self, program, data_path : DataPath, microcode):
+    def __init__(self, program, data_path : DataPath):
         self.program = program
-        self.program_counter = 0
 
         self.data_path = data_path
-        self.microcode = microcode
+        self.microcode = microcode_data[0]
+        self.mc_descriptions = microcode_data[1]
 
         self.current_instr = None
 
@@ -85,7 +93,9 @@ class ControlUnit:
 
         if ctrl & CTRL.REG2_SEL:
             signals.append((
-                lambda: self.data_path.reg2_sel(self.current_instr["rs2"]),
+                lambda: self.data_path.reg2_sel(
+                    self.current_instr.get("rs2", self.current_instr["rs1"])
+                    ),
                 1
             ))
 
@@ -129,11 +139,11 @@ class ControlUnit:
                 signals.append((self.data_path.latch_ar, 4))
             elif t == MEM.WRITE_W:
                 signals.append((
-                    lambda: self.data_path.data_write(4, "reg2"), 4
+                    lambda: self.data_path.data_write(4), 4
                 ))
             elif t == MEM.WRITE_B:
                 signals.append((
-                    lambda: self.data_path.data_write(1, "reg2"), 4
+                    lambda: self.data_path.data_write(1), 4
                 ))
 
         if decoded["reg_write"] != REG_WRITE.NONE:
@@ -149,7 +159,7 @@ class ControlUnit:
             t = PC(decoded["pc"])
 
             if t == PC.NEXT_PC:
-                signals.append((lambda: self.data_path.latch_pc("next"), 6))
+                signals.append((lambda: self.data_path.latch_pc("next_pc"), 6))
             elif t == PC.ALU:
                 signals.append((lambda: self.data_path.latch_pc("alu"), 6))
 
@@ -179,7 +189,12 @@ class ControlUnit:
                 self.micro_pc += 1
 
         else:
-            self.micro_pc = decoded["next"]
+            if not (ctrl & CTRL.DISPATCH):
+                self.micro_pc = decoded["next"]
+
+        self.tick()
+
+    
 
     def dispatch(self):
         self.current_instr = self.program[self.data_path.pc // 4]
@@ -199,21 +214,17 @@ class ControlUnit:
         self.micro_pc = self.dispatch_table[key]
 
     def __repr__(self):
-        state_repr = "TICK: {:3} PC: {:3}/{} ADDR: {:3} MEM_OUT: {}".format(
+        state_repr = "TICK: {:3} PC: {:3}/{} RA: {:3}".format(
             self._tick,
-            self.program_counter,
+            self.data_path.pc,
             self.micro_pc,
             self.data_path.ar,
-            self.data_path.data_memory[self.data_path.ar],
         )
 
-        instr = self.program[self.program_counter]
-        opcode = instr["opcode"]
-        instr_repr = str(opcode)
+        instr_repr = self.mc_descriptions[self.micro_pc]
+        # if self.current_instr:
+        #     opcode = self.current_instr["opcode"]
+        #     instr_repr = str(opcode)
 
-        if "arg" in instr:
-            instr_repr += " {}".format(instr["arg"])
 
-        instr_hex = f"{opcode_to_binary[opcode] << 28 | (instr.get('arg', 0) & 0x0FFFFFFF):08X}"
-
-        return "{} \t{} [{}]".format(state_repr, instr_repr, instr_hex)
+        return "{} \t{}".format(state_repr, instr_repr)

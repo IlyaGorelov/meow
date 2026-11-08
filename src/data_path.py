@@ -18,7 +18,7 @@ class DataPath:
 
         assert len(data) <= data_memory_size
 
-        self.data_memory = data
+        self.data_memory = bytearray(data)
         self.data_memory.extend(
             b"\x00" * (data_memory_size - len(data))
         )
@@ -52,10 +52,10 @@ class DataPath:
         if reg_write_sel == "alu":
             value = self.alu_result
 
-        elif reg_write_sel == "memory":
+        elif reg_write_sel == "mem_w":
             value = self.data_read(4)
 
-        elif reg_write_sel == "memory_byte":
+        elif reg_write_sel == "mem_b":
             value = self.data_read(1)
 
         elif reg_write_sel == "pc":
@@ -205,10 +205,17 @@ class DataPath:
         self.input_data = value
 
     def latch_out(self):
-        self.output_buffer.append(self.reg1)
+        self.output_buffer.append(chr(self.reg1))
 
     def signed_value(self, value):
         value &= 0xFFFFFFFF
         if value >= 0x80000000:
             return value - 0x100000000
         return value
+
+    def print_data_memory(self, filename="bin/data_memory.txt"):
+        with open(filename, "w") as file:
+            for i in range(0, len(self.data_memory), 4):
+                chunk = self.data_memory[i:i + 4]
+                line = " ".join(f"{byte:02X}" for byte in chunk)
+                file.write(line + "\n")

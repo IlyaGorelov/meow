@@ -231,8 +231,8 @@ class CodeGenerator:
                 self.functions[name] = node
 
         self.append_label("_start")
-        self.append("lui s1, 1") # init heap pointer
-        self.append("lui sp, 3") # init heap pointer
+        self.append("addi s1, zero,  100") # init heap pointer
+        self.append("addi sp,zero, 300") # init heap pointer
 
         for node in body:
             if node.get("type") == "function":
@@ -1134,15 +1134,15 @@ class CodeGenerator:
 
             if instruction == "j":
                 label = parts[1]
-                parts[1] = str(addresses[label] - address)
+                parts[1] = str(addresses[label] - address-4)
 
             elif instruction == "jal":
                 label = parts[2]
-                parts[2] = str(addresses[label] - address)
+                parts[2] = str(addresses[label] - address-4)
 
             elif instruction in ("beq", "bne", "blt", "bge", "bltu"):
                 label = parts[3]
-                parts[3] = str(addresses[label] - address)
+                parts[3] = str(addresses[label] - address-4)
 
             result.append(" ".join(parts))
             address += 4
