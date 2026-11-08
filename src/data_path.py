@@ -61,7 +61,8 @@ class DataPath:
         elif reg_write_sel == "pc":
             value = self.pc
 
-        elif reg_write_sel == "input":
+        elif reg_write_sel == "in":
+            self.input_read()
             value = self.input_data
         else:
             raise ValueError(f"Unknown register write source: {reg_write_sel}")

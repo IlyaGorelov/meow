@@ -691,7 +691,7 @@ class CodeGenerator:
         elif node_type == "input":
             self.append("in t0")
             self.append("addi t1, zero, 0xFF")
-            self.append("and t0, t1")
+            self.append("and t0, t0, t1")
 
         elif node_type == "array_creation":
             self.generate_array_creation(node)
