@@ -24,17 +24,74 @@ class Term(namedtuple("Term", "line pos symbol")):
 
 
 opcode_to_binary = {
-    Opcode.OP: 0x00,
-    Opcode.LUI: 0x01,
-    Opcode.OPIMM: 0x02,
-    Opcode.LOAD: 0x03,
-    Opcode.STORE: 0x04,
-    Opcode.JAL: 0x05,
-    Opcode.JALR: 0x0A,
-    Opcode.BRANCH: 0x06,
-    Opcode.IN: 0x07,
-    Opcode.OUT: 0x08,
-    Opcode.HALT: 0x09,
+    Opcode.OPIMM: 0b00001,
+    Opcode.LUI: 0b00010,
+    Opcode.OP: 0b00011,
+    Opcode.JAL: 0b00100,
+    Opcode.JALR: 0b00101,
+    Opcode.BRANCH: 0b00110,
+    Opcode.LOAD: 0b00111,
+    Opcode.STORE: 0x01000,
+    Opcode.IN: 0x01001,
+    Opcode.OUT: 0x01010,
+    Opcode.HALT: 0x01011,
+    Opcode.VOP: 0x01100,
+    Opcode.VSTORE: 0x01101,
+    Opcode.VLOAD: 0x01110,
+}
+
+# I-type: funct3
+i_instructions = {
+    "addi":  0b000,
+    "mv": 0b000,
+    "slti":  0b001,
+    "sltiu": 0b010,
+    "xori":  0b011,
+}
+
+# R-type: funct3, funct7
+r_instructions = {
+    "add":  (0b000, 0b0000000),
+    "sub":  (0b001, 0b0000000),
+
+    "slt":  (0b010, 0b0000000),
+    "sltu": (0b011, 0b0000000),
+
+    "and":  (0b100, 0b0000000),
+    "xor":  (0b101, 0b0000000),
+    "or":   (0b110, 0b0000000),
+
+    "sll":  (0b111, 0b0000000),
+    "srl":  (0b001, 0b0000001),
+    "sra":  (0b010, 0b0000001),
+
+    "mul":  (0b011, 0b0000001),
+    "mulh": (0b100, 0b0000001),
+    "div":  (0b101, 0b0000001),
+    "rem":  (0b110, 0b0000001),
+}
+
+# B-type: funct3
+branch_instructions = {
+        "blt": 0b000,
+        "bge": 0b001,
+        "beq": 0b010,
+        "bne": 0b011,
+        "bltu": 0b100,
+    }
+
+load_instructions = {
+        "lw": 0b000,
+        "lb": 0b001,
+    }
+
+store_instructions = {
+        "sw": 0b000,
+        "sb": 0b001,
+    }
+
+vector_instructions = {
+
 }
 
 binary_to_opcode = {
@@ -82,54 +139,6 @@ class Assembler:
         "t4": 29,
         "t5": 30,
         "t6": 31,
-    }
-
-    # R-type: funct3, funct7
-    r_instructions = {
-        "add":  (0b000, 0b0000000),
-        "sub":  (0b000, 0b0100000),
-
-        "sll":  (0b001, 0b0000000),
-        "slt":  (0b010, 0b0000000),
-        "sltu": (0b011, 0b0000000),
-
-        "xor":  (0b100, 0b0000000),
-        "srl":  (0b101, 0b0000000),
-        "sra":  (0b101, 0b0100000),
-
-        "or":   (0b110, 0b0000000),
-        "and":  (0b111, 0b0000000),
-
-        "mul":  (0b000, 0b0000001),
-        "mulh": (0b001, 0b0000001),
-        "div":  (0b100, 0b0000001),
-        "rem":  (0b110, 0b0000001),
-    }
-
-    # I-type: funct3
-    i_instructions = {
-        "addi":  0b000,
-        "slti":  0b010,
-        "sltiu": 0b011,
-        "xori":  0b100,
-    }
-
-    load_instructions = {
-        "lb": 0b000,
-        "lw": 0b010,
-    }
-
-    store_instructions = {
-        "sb": 0b000,
-        "sw": 0b010,
-    }
-
-    branch_instructions = {
-        "beq": 0b000,
-        "bne": 0b001,
-        "blt": 0b100,
-        "bge": 0b101,
-        "bltu": 0b110,
     }
 
     @staticmethod

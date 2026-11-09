@@ -224,6 +224,11 @@
 | pc                                           |
 +----------------------------------------------+
 
+       Vector Registers
++-----------------------------------+
+| v0-v7                             |
++-----------------------------------+
+
        Instruction memory
 +------------------------------+
 | 0   : program start          |
@@ -290,166 +295,117 @@
 
 ### Набор инструкций
 
-#### Register-Immediate Instructions
+#### Register-Immediate Instructions & jalr & lw & lb (I-type)
 
-| Инструкция                | Кол-во тактов | Описание                                          |
-| ------------------------- | ------------- | ------------------------------------------------- |
-| `addi <rd>, <rs1>, <imm>` | 1             | `rd = rs1 + imm`                                  |
-| `slti <rd>, <rs1>, <imm>` | 1             | `rd = (rs1 < imm) ? 1 : 0`                        |
-| `lui <rd>, <imm>`         | 1             | loads 20-bit immediate into upper 20 bits of `rd` |
-| `mv <rd>, <rs>`           | 1             | `rd = rs`                                         |
-| `xori <rd>, <rs1>, <imm>` | 1             | `rd = rs1 xor imm`                                |
-| `sltiu rd, rs1, imm`      | 1             | works like `slti`, but comparison is unsigned     |
+| OPCODE | funct3 | Инструкция                 | Кол-во тактов | Описание                                      |
+| :----: | :----: | -------------------------- | ------------- | --------------------------------------------- |
+| 00001  |  000   | `addi <rd>, <rs1>, <imm>`  | 1             | `rd = rs1 + imm`                              |
+| 00001  |  001   | `slti <rd>, <rs1>, <imm>`  | 1             | `rd = (rs1 < imm) ? 1 : 0`                    |
+| 00001  |  010   | `sltiu <rd>, <rs1>, <imm>` | 1             | works like `slti`, but comparison is unsigned |
+| 00001  |  011   | `xori <rd>, <rs1>, <imm>`  | 1             | `rd = rs1 xor imm`                            |
+| 00001  |  000   | `mv <rd>, <rs>`            | 1             | `addi <rd>, <rs1>, 0`                         |
+| 00101  |   -    | `jalr rd, offset(rs1)`     | 1             | 1. `rd = pc` 2. `pc=rs1 + offset`             |
+| 00111  |  000   | `lw <rd>, <offset>(<rs1>)` | 2             | loads a 32-bit value from memory into rd      |
+| 00111  |  001   | `lb <rd>, <offset>(<rs1>)` | 2             | loads a 8-bit value from memory into rd       |
 
-#### Register-Register Instructions
+#### Load Upper Immediate & Halt (U-type)
 
-| Инструкция          | Кол-во тактов | Описание                               |
-| ------------------- | ------------- | -------------------------------------- |
-| `add rd, rs1, rs2`  | 1             | `rd = rs1 + rs2`                       |
-| `sub rd, rs1, rs2`  | 1             | `rd = rs1 - rs2`                       |
-| `slt rd, rs1, rs2`  | 1             | `rd = rs1 < rs2 ? 1 : 0`               |
-| `sltu rd, rs1, rs2` | 1             | like `slt`, but comparison is unsigned |
-| `and rd, rs1, rs2`  | 1             | `rd = rs1 & rs2`                       |
-| `or rd, rs1, rs2`   | 1             | `rd = rs1 \| rs2`                      |
-| `xor rd, rs1, rs2`  | 1             | `rd = rs1 XOR rs2`                     |
-| `sll rd, rs1, rs2`  | 1             | `rd = rs1 << rs2[4:0]` (logical)       |
-| `srl rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (logical)       |
-| `sra rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (arithmetic)    |
-| `mul rd, rs1, rs2`  | 1             | `rd = (rs1 * rs2)[31:0]`               |
-| `mulh rd, rs1, rs2` | 1             | `rd = (rs1 * rs2)[63:32]`              |
-| `div rd, rs1, rs2`  | 1             | `rd = rs1 / rs2`                       |
-| `rem rd, rs1, rs2`  | 1             | `rd = rs1 % rs2`                       |
+| OPCODE | Инструкция        | Кол-во тактов | Описание                                          |
+| :----: | ----------------- | ------------- | ------------------------------------------------- |
+| 00010  | `lui <rd>, <imm>` | 1             | loads 20-bit immediate into upper 20 bits of `rd` |
+| 01011  | `halt`            | 1             |                                                   |
 
-#### Unconditional Flow Controls
+#### Register-Register Instructions (R-type)
 
-| Инструкция NOP         | Кол-во тактов | Описание                          |
-| ---------------------- | ------------- | --------------------------------- |
-| `jal <rd>, <imm>`      | 1             | 1. `rd = pc` 2. `pc+=imm`         |
-| `jalr rd, offset(rs1)` | 1             | 1. `rd = pc` 2. `pc=rs1 + offset` |
-| `j <k>`                | 1             | `jal <zero>, <imm>`               |
-| `halt`                 | 1             |                                   |
+| OPCODE | funct3 | funct7  | Инструкция          | Кол-во тактов | Описание                               |
+| :----: | :----: | :-----: | ------------------- | ------------- | -------------------------------------- |
+| 00011  |  000   | 0000000 | `add rd, rs1, rs2`  | 1             | `rd = rs1 + rs2`                       |
+| 00011  |  001   | 0000000 | `sub rd, rs1, rs2`  | 1             | `rd = rs1 - rs2`                       |
+| 00011  |  010   | 0000000 | `slt rd, rs1, rs2`  | 1             | `rd = rs1 < rs2 ? 1 : 0`               |
+| 00011  |  011   | 0000000 | `sltu rd, rs1, rs2` | 1             | like `slt`, but comparison is unsigned |
+| 00011  |  100   | 0000000 | `and rd, rs1, rs2`  | 1             | `rd = rs1 & rs2`                       |
+| 00011  |  101   | 0000000 | `or rd, rs1, rs2`   | 1             | `rd = rs1 \| rs2`                      |
+| 00011  |  110   | 0000000 | `xor rd, rs1, rs2`  | 1             | `rd = rs1 XOR rs2`                     |
+| 00011  |  111   | 0000000 | `sll rd, rs1, rs2`  | 1             | `rd = rs1 << rs2[4:0]` (logical)       |
+| 00011  |  001   | 0000001 | `srl rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (logical)       |
+| 00011  |  010   | 0000001 | `sra rd, rs1, rs2`  | 1             | `rd = rs1 >> rs2[4:0]` (arithmetic)    |
+| 00011  |  011   | 0000001 | `mul rd, rs1, rs2`  | 1             | `rd = (rs1 * rs2)[31:0]`               |
+| 00011  |  100   | 0000001 | `mulh rd, rs1, rs2` | 1             | `rd = (rs1 * rs2)[63:32]`              |
+| 00011  |  101   | 0000001 | `div rd, rs1, rs2`  | 1             | `rd = rs1 / rs2`                       |
+| 00011  |  110   | 0000001 | `rem rd, rs1, rs2`  | 1             | `rd = rs1 % rs2`                       |
 
-#### Conditional Branches
+#### Jumps (J-type)
 
-| Инструкция NOP          | Кол-во тактов | Описание                            |
-| ----------------------- | ------------- | ----------------------------------- |
-| `blt <rs1>, <rs2>, <k>` | 2             | Bracnh to `pc + k`, if `rs1 < rs2`  |
-| `bge <rs1>, <rs2>, <k>` | 2             | Bracnh to `pc + k`, if `rs1 >= rs2` |
-| `beq <rs1>, <rs2>, <k>` | 2             | Bracnh to `pc + k`, if `rs1 == rs2` |
-| `bne <rs1>, <rs2>, <k>` | 2             | Bracnh to `pc + k`, if `rs1 != rs2` |
+| OPCODE | Инструкция        | Кол-во тактов | Описание                  |
+| ------ | ----------------- | ------------- | ------------------------- |
+| 00100  | `jal <rd>, <imm>` | 1             | 1. `rd = pc` 2. `pc+=imm` |
+| 00100  | `j <imm>`         | 1             | `jal <zero>, <imm>`       |
 
-#### Load and Store Instructions
+#### Branches (B-type)
 
-| Инструкция NOP              | Кол-во тактов | Описание                                  |
-| --------------------------- | ------------- | ----------------------------------------- |
-| `sw <rs2>, <offset>(<rs1>)` | 2             | stores a 32-bit value from rd into memory |
-| `sb <rs2>, <offset>(<rs1>)` | 2             | stores a 8-bit value from rd into memory  |
-| `lw <rd>, <offset>(<rs1>)`  | 2             | loads a 32-bit value from memory into rd  |
-| `lb <rd>, <offset>(<rs1>)`  | 2             | loads a 8-bit value from memory into rd   |
+| OPCODE | funct3 | Инструкция NOP           | Кол-во тактов | Описание                                      |
+| :----: | :----: | ------------------------ | ------------- | --------------------------------------------- |
+| 00110  |  000   | `blt <rs1>, <rs2>, <k>`  | 2             | Branch to `pc + k`, if `rs1 < rs2`            |
+| 00110  |  001   | `bge <rs1>, <rs2>, <k>`  | 2             | Branch to `pc + k`, if `rs1 >= rs2`           |
+| 00110  |  010   | `beq <rs1>, <rs2>, <k>`  | 2             | Branch to `pc + k`, if `rs1 == rs2`           |
+| 00110  |  011   | `bne <rs1>, <rs2>, <k>`  | 2             | Branch to `pc + k`, if `rs1 != rs2`           |
+| 00110  |  100   | `bltu <rs1>, <rs2>, <k>` | 2             | Branch to `pc + k`, if `rs1 < rs2` (unsigned) |
 
-#### Input and Output Instructions
+#### Store (S-type)
 
-| Инструкция NOP | Кол-во тактов | Описание |
-| -------------- | ------------- | -------- |
-| `in <rd>`      | 1             |          |
-| `out <rd>`     | 1             |          |
+| OPCODE | funct3 | Инструкция                  | Кол-во тактов | Описание                                   |
+| :----: | :----: | --------------------------- | ------------- | ------------------------------------------ |
+| 01000  |  000   | `sw <rs2>, <offset>(<rs1>)` | 2             | stores a 32-bit value from rs2 into memory |
+| 01000  |  001   | `sb <rs2>, <offset>(<rs1>)` | 2             | stores a 8-bit value from rs2 into memory  |
+
+#### IO (U-type)
+
+| OPCODE | Инструкция NOP | Кол-во тактов | Описание |
+| :----: | -------------- | ------------- | -------- |
+| 01001  | `in <rd>`      | 1             |          |
+| 01010  | `out <rd>`     | 1             |          |
+
+#### Vector-to-Vector (R-type)
+
+| OPCODE | funct3 | funct7 | Инструкция                | Кол-во тактов | Описание |
+| :----: | :----: | :----: | ------------------------- | ------------- | -------- |
+| 01100  |  000   |   -    | `vadd <rd>, <rs1>, <rs2>` | 1             |          |
+| 01100  |  001   |   -    | `vsub <rd>, <rs1>, <rs2>` | 1             |          |
+| 01100  |  010   |   -    | `vmul <rd>, <rs1>, <rs2>` | 1             |          |
+| 01100  |  011   |   -    | `vdiv <rd>, <rs1>, <rs2>` | 1             |          |
+| 01100  |  100   |   -    | `vslt <rd>, <rs1>, <rs2>` | 1             |          |
+
+#### Vector Store (VS-type)
+
+| OPCODE | Инструкция                                | Кол-во тактов | Описание |
+| :----: | ----------------------------------------- | ------------- | -------- |
+| 01101  | `vstore <vrs1>, <offset>(<rs2>), <count>` | 1             |          |
+
+#### Vector Load (VL-type)
+
+| OPCODE | Инструкция                               | Кол-во тактов | Описание |
+| :----: | ---------------------------------------- | ------------- | -------- |
+| 01110  | `vload <vrd1>, <offset>(<rs2>), <count>` | 1             |          |
 
 ### Кодирование инструкций
 
 #### Бинарное представление
 
-##### U-type
+| Type |      31 – 25      |  24 – 20   |  19 – 15   |  14 – 12   |  11 – 7  | 6 – 0  |
+| :--: | :---------------: | :--------: | :--------: | :--------: | :------: | :----: |
+|  I   |     imm[11:5]     |  imm[4:0]  |    rs1     |   funct3   |    rd    | opcode |
+|  U   |    imm[31:25]     | imm[24:20] | imm[19:15] | imm[14:12] |    rd    | opcode |
+|  R   |      funct7       |    rs2     |    rs1     |   funct3   |    rd    | opcode |
+|  J   | imm[20\|10:1\|11] | imm[19:12] |     —      |     —      |    rd    | opcode |
+|  B   |     imm[10:5]     |    rs2     |    rs1     |   funct3   | imm[4:1] | opcode |
+|  S   |     imm[11:5]     |    rs2     |    rs1     |   funct3   | imm[4:0] | opcode |
 
-Used by `lui` and `halt`
+##### Vectors
 
-```
- 31                                            12 11      7 6          0
-+------------------------------------------------+---------+-----------+
-|                imm[31:12]                      |    rd   |  opcode   |
-+------------------------------------------------+---------+-----------+
-                      20                            5            7
-```
-
-##### R-type — register operations
-
-Used by `add`, `sub`, `slt`, `and`, `or`, `xor`, `sll`, `srl`, `sra`, `mul`, `mulh`, `div`, `rem`, `in`, `out`
-
-```
- 31          25 24       20 19       15 14     12 11      7 6          0
-+--------------+------------+-----------+--------+---------+-----------+
-|    funct7    |    rs2     |    rs1    | funct3 |    rd   |   opcode  |
-+--------------+------------+-----------+--------+---------+-----------+
-       7             5           5           3         5         7
-```
-
-If opcode is 'OP': The funct7 and funct3 fields select the type of operation
-If opcode is 'IN' or 'OUT": The funct7 and funct3 fields are filled with zeros
-
-##### I-type — immediate and memory operations
-
-Used by `addi`, `slti`, `ld`, `mv`
-
-```
- 31                       20 19       15 14    12 11      7 6         0
-+---------------------------+-----------+--------+---------+----------+
-|         imm[11:0]         |    rs1    | funct3 |    rd   |  opcode  |
-+---------------------------+-----------+--------+---------+----------+
-            12                   5          3         5             7
-```
-
-`mv` is a pseudo-instruction, encoded like addi
-
-if opcode is 'OP-IMM': The funct3 field selects the type of operation.
-if opcode is 'LOAD': The funct3 field selects the width.
-
-##### S-type — stores
-
-```
- 31          25 24       20 19       15 14     12 11      7 6          0
-+--------------+------------+-----------+--------+---------+-----------+
-|  imm[11:5]   |    rs2     |    rs1    | funct3 |imm[4:0] |   STORE  |
-+--------------+------------+-----------+--------+---------+-----------+
-       7             5           5           3         5         7
-```
-
-##### J-type — jumps
-
-Used by `jal`, `j`
-
-```
-31   30           21 20   19                   12 11      7 6          0
-+----+--------------+----+-----------------------+---------+-----------+
-|[20]|   imm[10:1]  |[11]|     imm[19:12]        |   rd    |   JAL     |
-+----+--------------+----+-----------------------+---------+-----------+
-```
-
-Jumps can target a ±1 MiB range. The lowest bit is ALWAYS 0.
-
-##### B-type — branches
-
-Used by `beq`, `bne`, `blt`, `bge`, `bgt`, `ble`.
-
-```
- 31          25 24       20 19       15 14     12 11      7 6          0
-+--------------+------------+-----------+--------+---------+-----------+
-|  imm[10:5]   |    rs2     |    rs1    | funct3 |imm[4:1] |   BRANCH  |
-+--------------+------------+-----------+--------+---------+-----------+
-```
-
-The conditional branch range is ±4 KiB. The lowest bit is ALWAYS 0.
-
-Коды операций:
-
-- `0000000` (0x00) -- `OP`
-- `00000001` (0x01) -- `LUI`
-- `0000010` (0x02) -- `OP-IMM`
-- `0000011` (0x03) -- `LOAD`
-- `0000100` (0x04) -- `STORE`
-- `0000101` (0x05) -- `JAL`
-- `0000110` (0x06) -- `BRANCH`
-- `0000111` (0x07) -- `IN`
-- `0001000` (0x08) -- `OUT`
-- `0001001` (0x09) -- `HALT`
+| Type |  31 – 25  | 24 – 20  | 19 – 16 | 15 – 12 |  11 – 7  | 6 – 0  |
+| :--: | :-------: | :------: | :-----: | :-----: | :------: | :----: |
+|  VS  | imm[11:5] |   rs2    |   rs1   |  count  | imm[4:0] | VSTORE |
+|  VL  | imm[11:5] | imm[4:0] |   rs1   |  count  |    rd    | opcode |
 
 ## Транслятор
 
