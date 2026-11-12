@@ -8,8 +8,8 @@ from microcode_mem import *
 
 
 def simulation(code, data, input_tokens, data_memory_size, limit):
-    data_path = DataPath(data_memory_size, data, input_tokens)
-    control_unit = ControlUnit(code, data_path)
+    data_path = DataPath(code, data_memory_size, data, input_tokens)
+    control_unit = ControlUnit(data_path)
 
     logging.debug("%s", control_unit)
     try:
@@ -30,12 +30,10 @@ def simulation(code, data, input_tokens, data_memory_size, limit):
 
 def main(code_file, data_file, input_file):
     with open(code_file, "rb") as file:
-        binary_code = file.read()
-    code = Assembler.from_bytes(binary_code)
+        code = file.read()
 
     with open(data_file, "rb") as file:
-        binary_code = file.read()
-    data = binary_code
+        data = file.read()
 
     with open(input_file, encoding="utf-8") as file:
         input_text = file.read()

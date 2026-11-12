@@ -1,8 +1,9 @@
 from microcode_mem import *
 from data_path import DataPath
-from isa import Opcode, opcode_to_binary
+from isa import Opcode, opcode_to_binary, binary_to_opcode
 
 microcode_data = setup_micro_memory()
+
 
 class ControlUnit:
     addresses = microcode_data[2]
@@ -10,22 +11,28 @@ class ControlUnit:
     dispatch_table = {
         # Immediate instructions
         (Opcode.OPIMM, 0b000): addresses["ADDI"],
-        (Opcode.OPIMM, 0b010): addresses["SLTI"],
-        Opcode.LUI: addresses["LUI"],
-        (Opcode.OPIMM, 0b100): addresses["XORI"],
-        (Opcode.OPIMM, 0b011): addresses["SLTIU"],
+        (Opcode.OPIMM, 0b001): addresses["SLTI"],
+        (Opcode.OPIMM, 0b010): addresses["SLTIU"],
+        (Opcode.OPIMM, 0b011): addresses["XORI"],
 
-        # Register instructions
+        # Upper immediate
+        Opcode.LUI: addresses["LUI"],
+
+        # Register instructions: funct3, funct7
         (Opcode.OP, 0b000, 0b0000000): addresses["ADD"],
-        (Opcode.OP, 0b000, 0b0100000): addresses["SUB"],
+        (Opcode.OP, 0b001, 0b0000000): addresses["SUB"],
         (Opcode.OP, 0b010, 0b0000000): addresses["SLT"],
         (Opcode.OP, 0b011, 0b0000000): addresses["SLTU"],
-        (Opcode.OP, 0b111, 0b0000000): addresses["AND"],
+        (Opcode.OP, 0b100, 0b0000000): addresses["AND"],
+        (Opcode.OP, 0b101, 0b0000000): addresses["XOR"],
         (Opcode.OP, 0b110, 0b0000000): addresses["OR"],
-        (Opcode.OP, 0b100, 0b0000000): addresses["XOR"],
-        (Opcode.OP, 0b001, 0b0000000): addresses["SLL"],
-        (Opcode.OP, 0b101, 0b0000000): addresses["SRL"],
-        (Opcode.OP, 0b101, 0b0100000): addresses["SRA"],
+        (Opcode.OP, 0b111, 0b0000000): addresses["SLL"],
+        (Opcode.OP, 0b001, 0b0000001): addresses["SRL"],
+        (Opcode.OP, 0b010, 0b0000001): addresses["SRA"],
+        (Opcode.OP, 0b011, 0b0000001): addresses["MUL"],
+        (Opcode.OP, 0b100, 0b0000001): addresses["MULH"],
+        (Opcode.OP, 0b101, 0b0000001): addresses["DIV"],
+        (Opcode.OP, 0b110, 0b0000001): addresses["REM"],
 
         # Jumps
         Opcode.JAL: addresses["JAL"],
@@ -35,31 +42,50 @@ class ControlUnit:
         Opcode.HALT: addresses["HALT"],
 
         # Branches
-        (Opcode.BRANCH, 0b100): addresses["BLT"],
-        (Opcode.BRANCH, 0b110): addresses["BLTU"],
-        (Opcode.BRANCH, 0b101): addresses["BGE"],
-        (Opcode.BRANCH, 0b000): addresses["BEQ"],
-        (Opcode.BRANCH, 0b001): addresses["BNE"],
+        (Opcode.BRANCH, 0b000): addresses["BLT"],
+        (Opcode.BRANCH, 0b001): addresses["BGE"],
+        (Opcode.BRANCH, 0b010): addresses["BEQ"],
+        (Opcode.BRANCH, 0b011): addresses["BNE"],
+        (Opcode.BRANCH, 0b100): addresses["BLTU"],
 
-        # Loads and stores
-        (Opcode.STORE, 0b010): addresses["SW"],
-        (Opcode.STORE, 0b000): addresses["SB"],
-        (Opcode.LOAD, 0b010): addresses["LW"],
-        (Opcode.LOAD, 0b000): addresses["LB"],
+        # Loads
+        (Opcode.LOAD, 0b000): addresses["LW"],
+        (Opcode.LOAD, 0b001): addresses["LB"],
 
-        # IO
+        # Stores
+        (Opcode.STORE, 0b000): addresses["SW"],
+        (Opcode.STORE, 0b001): addresses["SB"],
+
+        # I/O
         Opcode.IN: addresses["IN"],
-        Opcode.OUT: addresses["OUT"]
+        Opcode.OUT: addresses["OUT"],
+
+        # Vector arithmetic
+        (Opcode.VECTOR, 0b000): addresses["VADD"],
+        (Opcode.VECTOR, 0b001): addresses["VSUB"],
+        (Opcode.VECTOR, 0b010): addresses["VMUL"],
+        (Opcode.VECTOR, 0b011): addresses["VDIV"],
+        (Opcode.VECTOR, 0b100): addresses["VSLT"],
+
+        # Vector memory
+        (Opcode.VLOAD, 1): addresses["VLOAD1"],
+        (Opcode.VLOAD, 2): addresses["VLOAD2"],
+        (Opcode.VLOAD, 3): addresses["VLOAD3"],
+        (Opcode.VLOAD, 4): addresses["VLOAD4"],
+
+        (Opcode.VSTORE, 1): addresses["VSTORE1"],
+        (Opcode.VSTORE, 2): addresses["VSTORE2"],
+        (Opcode.VSTORE, 3): addresses["VSTORE3"],
+        (Opcode.VSTORE, 4): addresses["VSTORE4"],
+
+        # Vector length
+        Opcode.VSETVLI: addresses["VSETVLI"],
     }
 
-    def __init__(self, program, data_path : DataPath):
-        self.program = program
-
+    def __init__(self, data_path: DataPath):
         self.data_path = data_path
         self.microcode = microcode_data[0]
         self.mc_descriptions = microcode_data[1]
-
-        self.current_instr = None
 
         self.micro_pc = 0
         self._tick = 0
@@ -75,31 +101,14 @@ class ControlUnit:
 
         self.execute_micro_instr(micro_instr)
 
-
     def execute_micro_instr(self, micro_instr):
         decoded = decode(micro_instr)
         signals = []
 
-        ctrl = CTRL(decoded["ctrl"])
-
-        if ctrl & CTRL.DISPATCH:
+        if decoded["mpc_mux"] == MPC_MUX.DISPATCH:
             signals.append((self.dispatch, 0))
 
-        if ctrl & CTRL.REG1_SEL:
-            signals.append((
-                lambda: self.data_path.reg1_sel(self.current_instr["rs1"]),
-                1
-            ))
-
-        if ctrl & CTRL.REG2_SEL:
-            signals.append((
-                lambda: self.data_path.reg2_sel(
-                    self.current_instr.get("rs2", self.current_instr["rs1"])
-                    ),
-                1
-            ))
-
-        if ctrl & CTRL.INPUT_READ:
+        if decoded["read_input"]:
             signals.append((self.data_path.input_read, 1))
 
         if decoded["alu_left"] != ALU_LEFT.NONE:
@@ -111,19 +120,10 @@ class ControlUnit:
 
         if decoded["alu_right"] != ALU_RIGHT.NONE:
             t = ALU_RIGHT(decoded["alu_right"])
-
-            if t == ALU_RIGHT.IMM:
-                signals.append((
-                    lambda: self.data_path.right_alu_sel(
-                        "imm", self.current_instr["imm"]
-                    ),
-                    2
-                ))
-            else:
-                signals.append((
-                    lambda t=t: self.data_path.right_alu_sel(t.name.lower()),
-                    2
-                ))
+            signals.append((
+                lambda t=t: self.data_path.right_alu_sel(t.name.lower()),
+                2
+            ))
 
         if decoded["alu_op"] != ALU_OP.NONE:
             t = ALU_OP(decoded["alu_op"])
@@ -132,49 +132,92 @@ class ControlUnit:
                 3
             ))
 
-        if decoded["mem"] != MEM.NONE:
-            t = MEM(decoded["mem"])
-
-            if t == MEM.LATCH_AR:
-                signals.append((self.data_path.latch_ar, 4))
-            elif t == MEM.WRITE_W:
-                signals.append((
-                    lambda: self.data_path.data_write(4), 4
-                ))
-            elif t == MEM.WRITE_B:
-                signals.append((
-                    lambda: self.data_path.data_write(1), 4
-                ))
-
-        if decoded["reg_write"] != REG_WRITE.NONE:
-            t = REG_WRITE(decoded["reg_write"])
+        if decoded["valu_op"] != VALU_OP.NONE:
+            t = VALU_OP(decoded["valu_op"])
             signals.append((
-                lambda t=t: self.data_path.reg_write(
-                    t.name.lower(), self.current_instr["rd"]
-                ),
-                5
+                lambda t=t: self.data_path.vector_alu(t.name.lower()),
+                3
             ))
 
-        if decoded["pc"] != PC.NONE:
-            t = PC(decoded["pc"])
+        if decoded["latch_vl"]:
+            signals.append((self.data_path.latch_vl, 4))
 
-            if t == PC.NEXT_PC:
-                signals.append((lambda: self.data_path.latch_pc("next_pc"), 6))
-            elif t == PC.ALU:
-                signals.append((lambda: self.data_path.latch_pc("alu"), 6))
+        if decoded["data_write"]:
+            t = MEM_WRITE_MUX(decoded["mem_write_mux"])
+            lane = decoded["vector_lane"]
 
-        if ctrl & CTRL.OUTPUT:
-            signals.append((self.data_path.latch_out, 7))
+            if t == MEM_WRITE_MUX.WRITE_B:
+                signals.append((
+                    lambda: self.data_path.data_write("write_b"),
+                    5
+                ))
+
+            elif t == MEM_WRITE_MUX.WRITE_W:
+                signals.append((
+                    lambda: self.data_path.data_write("write_w"),
+                    5
+                ))
+
+            elif t == MEM_WRITE_MUX.WRITE_VECTOR:
+                signals.append((
+                    lambda lane=lane: self.data_path.data_write(
+                        "write_vector", lane
+                    ),
+                    5
+                ))
+
+        if decoded["reg_write"]:
+            t = REG_WRITE_MUX(decoded["reg_write_mux"])
+
+            signals.append((
+                lambda: self.data_path.reg_write(t.name.lower()),
+                6
+            ))
+
+        if decoded["vreg_write"]:
+            t = VREG_WRITE_MUX(decoded["vreg_write_mux"])
+            lane = decoded["vector_lane"]
+
+            signals.append((
+                lambda t=t, lane=lane:
+                    self.data_path.vreg_write(t.name.lower(), lane),
+                6
+            ))
+
+        if decoded["latch_ar"]:
+            t = AR_MUX(decoded["ar_mux"])
+            signals.append((
+                lambda t=t: self.data_path.latch_ar(t.name.lower()),
+                7
+            ))
+
+        if decoded["latch_pc"]:
+            t = PC_MUX(decoded["pc_mux"])
+            signals.append((
+                lambda t=t: self.data_path.latch_pc(t.name.lower()),
+                8
+            ))
+
+        if decoded["latch_out"]:
+            signals.append((self.data_path.latch_out, 9))
 
         signals.sort(key=lambda x: x[1])
 
         for method, priority in signals:
             method()
 
-        if ctrl & CTRL.HALT:
+        if decoded["halt"]:
             raise StopIteration("Halt")
 
-        elif decoded["cond"] != COND.NONE:
+        mpc_mux = MPC_MUX(decoded["mpc_mux"])
+
+        if mpc_mux == MPC_MUX.INCREMENT:
+            self.micro_pc += 1
+
+        elif mpc_mux == MPC_MUX.ZERO:
+            self.micro_pc = 0
+
+        elif mpc_mux == MPC_MUX.CONDITIONAL:
             cond = COND(decoded["cond"])
 
             condition_met = (
@@ -183,30 +226,24 @@ class ControlUnit:
                 else self.data_path.alu_result != 0
             )
 
-            if condition_met:
-                self.micro_pc = decoded["next"]
-            else:
-                self.micro_pc += 1
-
-        else:
-            if not (ctrl & CTRL.DISPATCH):
-                self.micro_pc = decoded["next"]
+            self.micro_pc += 2 if condition_met else 1
 
         self.tick()
 
-    
-
     def dispatch(self):
-        self.current_instr = self.program[self.data_path.pc // 4]
-
-        instr = self.current_instr
-        opcode = instr["opcode"]
+        instr = self.data_path.instruction_read()
+        opcode = binary_to_opcode[instr & 0x1F]
+        funct3 = (instr >> 12) & 0b111
+        funct7 = (instr >> 25) & 0b1111111  
 
         if opcode == Opcode.OP:
-            key = (opcode, instr["funct3"], instr["funct7"])
+            key = (opcode,funct3,funct7)
 
         elif opcode in (Opcode.OPIMM, Opcode.LOAD, Opcode.STORE, Opcode.BRANCH):
-            key = (opcode, instr["funct3"])
+            key = (opcode, funct3)
+            
+        elif opcode in (Opcode.VLOAD, Opcode.VSTORE):
+            key = (opcode, self.data_path.vl)
 
         else:
             key = opcode
@@ -225,6 +262,5 @@ class ControlUnit:
         # if self.current_instr:
         #     opcode = self.current_instr["opcode"]
         #     instr_repr = str(opcode)
-
 
         return "{} \t{}".format(state_repr, instr_repr)

@@ -14,30 +14,35 @@ class Opcode(str, Enum):
     IN = "IN"
     OUT = "OUT"
     HALT = "HALT"
+    VECTOR = "VECTOR"
+    VLOAD = "VLOAD"
+    VSTORE="VSTORE"
+    VSETVLI = "VSETVLI"
 
     def __str__(self):
         return self.value
 
 
 class Term(namedtuple("Term", "line pos symbol")):
-    """Описание выражения из исходного текста программы."""
+    pass
 
 
 opcode_to_binary = {
-    Opcode.OPIMM: 0b00001,
-    Opcode.LUI: 0b00010,
-    Opcode.OP: 0b00011,
-    Opcode.JAL: 0b00100,
-    Opcode.JALR: 0b00101,
-    Opcode.BRANCH: 0b00110,
-    Opcode.LOAD: 0b00111,
-    Opcode.STORE: 0x01000,
-    Opcode.IN: 0x01001,
-    Opcode.OUT: 0x01010,
-    Opcode.HALT: 0x01011,
-    Opcode.VOP: 0x01100,
-    Opcode.VSTORE: 0x01101,
-    Opcode.VLOAD: 0x01110,
+    Opcode.OPIMM: 0b1,
+    Opcode.LUI: 0b10,
+    Opcode.OP: 0b11,
+    Opcode.JAL: 0b100,
+    Opcode.JALR: 0b101,
+    Opcode.BRANCH: 0b110,
+    Opcode.LOAD: 0b111,
+    Opcode.STORE: 0b1000,
+    Opcode.IN: 0b1001,
+    Opcode.OUT: 0b1010,
+    Opcode.HALT: 0b1011,
+    Opcode.VECTOR: 0b1100,
+    Opcode.VSTORE: 0b1101,
+    Opcode.VLOAD: 0b1110,
+    Opcode.VSETVLI: 0b1111,
 }
 
 # I-type: funct3
@@ -83,67 +88,75 @@ branch_instructions = {
 load_instructions = {
         "lw": 0b000,
         "lb": 0b001,
+        "vload": 0
     }
 
 store_instructions = {
         "sw": 0b000,
         "sb": 0b001,
+        "vstore": 0
     }
 
 vector_instructions = {
-
+    "add":  (0b000, 0b0000000),
+    "sub":  (0b001, 0b0000000),
+    "mul":  (0b010, 0b0000000),
+    "div":  (0b011, 0b0000000),
+    "slt":  (0b100, 0b0000000),
 }
 
 binary_to_opcode = {
     value: key for key, value in opcode_to_binary.items()
 }
 
+registers = {
+    "zero": 0,
+    "ra": 1,
+    "sp": 2,
+    "gp": 3,
+    "tp": 4,
+
+    "t0": 5,
+    "t1": 6,
+    "t2": 7,
+
+    "s0": 8,
+    "fp": 8,
+    "s1": 9,
+
+    "a0": 10,
+    "a1": 11,
+    "a2": 12,
+    "a3": 13,
+    "a4": 14,
+    "a5": 15,
+    "a6": 16,
+    "a7": 17,
+
+    "s2": 18,
+    "s3": 19,
+    "s4": 20,
+    "s5": 21,
+    "s6": 22,
+    "s7": 23,
+    "s8": 24,
+    "s9": 25,
+    "s10": 26,
+    "s11": 27,
+
+    "t3": 28,
+    "t4": 29,
+    "t5": 30,
+    "t6": 31,
+}
+
 
 class Assembler:
-    registers = {
-        "zero": 0,
-        "ra": 1,
-        "sp": 2,
-        "gp": 3,
-        "tp": 4,
-
-        "t0": 5,
-        "t1": 6,
-        "t2": 7,
-
-        "s0": 8,
-        "fp": 8,
-        "s1": 9,
-
-        "a0": 10,
-        "a1": 11,
-        "a2": 12,
-        "a3": 13,
-        "a4": 14,
-        "a5": 15,
-        "a6": 16,
-        "a7": 17,
-
-        "s2": 18,
-        "s3": 19,
-        "s4": 20,
-        "s5": 21,
-        "s6": 22,
-        "s7": 23,
-        "s8": 24,
-        "s9": 25,
-        "s10": 26,
-        "s11": 27,
-
-        "t3": 28,
-        "t4": 29,
-        "t5": 30,
-        "t6": 31,
-    }
+    
 
     @staticmethod
     def get_register_number(register):
-        return Assembler.registers[register]
+        return registers[register]
 
     @staticmethod
     def get_opcode(opcode):
@@ -295,10 +308,10 @@ class Assembler:
                 int(imm,0)
             )
 
-        if mnemonic in Assembler.r_instructions:
+        if mnemonic in r_instructions:
             rd, rs1, rs2 = args
 
-            funct3, funct7 = Assembler.r_instructions[mnemonic]
+            funct3, funct7 = r_instructions[mnemonic]
 
             return Assembler.encode_r(
                 Opcode.OP,
@@ -333,12 +346,12 @@ class Assembler:
                     Assembler.get_register_number(rs2)
                 )
 
-        if mnemonic in Assembler.i_instructions:
+        if mnemonic in i_instructions:
             rd, rs1, imm = args
 
             return Assembler.encode_i(
                 Opcode.OPIMM,
-                Assembler.i_instructions[mnemonic],
+                i_instructions[mnemonic],
                 Assembler.get_register_number(rd),
                 Assembler.get_register_number(rs1),
                 int(imm,0)
@@ -355,34 +368,34 @@ class Assembler:
                 0
             )
 
-        if mnemonic in Assembler.load_instructions:
+        if mnemonic in load_instructions:
             rd, imm, rs1 = args
 
             return Assembler.encode_i(
                 Opcode.LOAD,
-                Assembler.load_instructions[mnemonic],
+                load_instructions[mnemonic],
                 Assembler.get_register_number(rd),
                 Assembler.get_register_number(rs1),
                 int(imm,0)
             )
 
-        if mnemonic in Assembler.store_instructions:
+        if mnemonic in store_instructions:
             rs2, imm, rs1 = args
 
             return Assembler.encode_s(
                 Opcode.STORE,
-                Assembler.store_instructions[mnemonic],
+                store_instructions[mnemonic],
                 Assembler.get_register_number(rs1),
                 Assembler.get_register_number(rs2),
                 int(imm,0)
             )
 
-        if mnemonic in Assembler.branch_instructions:
+        if mnemonic in branch_instructions:
             rs1, rs2, imm = args
 
             return Assembler.encode_b(
                 Opcode.BRANCH,
-                Assembler.branch_instructions[mnemonic],
+                branch_instructions[mnemonic],
                 Assembler.get_register_number(rs1),
                 Assembler.get_register_number(rs2),
                 int(imm,0)
@@ -416,6 +429,29 @@ class Assembler:
                 Assembler.get_register_number(rs1),
                 int(imm,0)
             )
+            
+        if mnemonic in vector_instructions:
+            rd, rs1, rs2 = args
+            
+            funct3, funct7 = r_instructions[mnemonic]
+
+            return Assembler.encode_r(
+                Opcode.VECTOR,
+                funct3,
+                funct7,
+                Assembler.get_register_number(rd),
+                Assembler.get_register_number(rs1),
+                Assembler.get_register_number(rs2),
+            )
+            
+        if mnemonic == "vsetvli":
+            rd, imm , _ = args
+            
+            return Assembler.encode_u(
+                Opcode.VSETVLI,
+                Assembler.get_register_number(rd),
+                int(imm,0)
+            )
 
         raise ValueError(f"Unknown instruction: {mnemonic}")
 
@@ -425,6 +461,7 @@ class Assembler:
 
         for line_number, line in enumerate(code.splitlines(), 1):
             instruction = Assembler.assemble_instruction(line)
+            print(instruction)
 
             if instruction is not None:
                 machine_code.append(instruction)
@@ -456,151 +493,4 @@ class Assembler:
 
         return "\n".join(result)
 
-    @staticmethod
-    def from_bytes(data):
-        result = []
-
-        for i in range(0, len(data), 4):
-            if i + 4 > len(data):
-                raise ValueError("Incomplete instruction (expected 4 bytes)")
-
-            instruction = int.from_bytes(
-                data[i:i + 4],
-                byteorder="big"
-            )
-
-            opcode = instruction & 0x7F
-
-            if opcode == opcode_to_binary[Opcode.LUI]:
-                decoded = Assembler.decode_u(instruction)
-
-            elif opcode == opcode_to_binary[Opcode.OP]:
-                decoded = Assembler.decode_r(instruction)
-
-            elif opcode in (
-                opcode_to_binary[Opcode.OPIMM],
-                opcode_to_binary[Opcode.LOAD],
-                opcode_to_binary[Opcode.JALR],
-            ):
-                decoded = Assembler.decode_i(instruction)
-
-            elif opcode == opcode_to_binary[Opcode.STORE]:
-                decoded = Assembler.decode_s(instruction)
-
-            elif opcode == opcode_to_binary[Opcode.JAL]:
-                decoded = Assembler.decode_j(instruction)
-
-            elif opcode == opcode_to_binary[Opcode.BRANCH]:
-                decoded = Assembler.decode_b(instruction)
-
-            elif opcode in (
-                opcode_to_binary[Opcode.IN],
-                opcode_to_binary[Opcode.OUT],
-            ):
-                decoded = Assembler.decode_r(instruction)
-
-            elif opcode == opcode_to_binary[Opcode.HALT]:
-                decoded = Assembler.decode_u(instruction)
-
-            else:
-                raise ValueError(f"Unknown opcode: {opcode:#x}")
-
-            decoded["index"] = i // 4
-            decoded["opcode"] = Opcode(
-                binary_to_opcode[opcode]
-            )
-
-            result.append(decoded)
-
-        return result
-
-    @staticmethod
-    def decode_u(instruction):
-        return {
-            "opcode": instruction & 0x7F,
-            "rd": (instruction >> 7) & 0x1F,
-            "imm": (instruction >> 12) & 0xFFFFF,
-        }
-
-
-    @staticmethod
-    def decode_r(instruction):
-        return {
-            "opcode": instruction & 0x7F,
-            "rd": (instruction >> 7) & 0x1F,
-            "funct3": (instruction >> 12) & 0x7,
-            "rs1": (instruction >> 15) & 0x1F,
-            "rs2": (instruction >> 20) & 0x1F,
-            "funct7": (instruction >> 25) & 0x7F,
-        }
-
-    @staticmethod
-    def decode_i(instruction):
-        imm = (instruction >> 20) & 0xFFF
-
-        if imm & 0x800:
-            imm -= 0x1000
-
-        return {
-            "opcode": instruction & 0x7F,
-            "rd": (instruction >> 7) & 0x1F,
-            "funct3": (instruction >> 12) & 0x7,
-            "rs1": (instruction >> 15) & 0x1F,
-            "imm": imm,
-        }
-
-    @staticmethod
-    def decode_s(instruction):
-        imm = (
-            (((instruction >> 25) & 0x7F) << 5)
-            | ((instruction >> 7) & 0x1F)
-        )
-
-        if imm & 0x800:
-            imm -= 0x1000
-
-        return {
-            "opcode": instruction & 0x7F,
-            "funct3": (instruction >> 12) & 0x7,
-            "rs1": (instruction >> 15) & 0x1F,
-            "rs2": (instruction >> 20) & 0x1F,
-            "imm": imm,
-        }
-
-    @staticmethod
-    def decode_j(instruction):
-        imm = (
-            (((instruction >> 31) & 0x1) << 20)
-            | (((instruction >> 21) & 0x3FF) << 1)
-            | (((instruction >> 20) & 0x1) << 11)
-            | (((instruction >> 12) & 0xFF) << 12)
-        )
-
-        if imm & 0x100000:
-            imm -= 0x200000
-
-        return {
-            "opcode": instruction & 0x7F,
-            "rd": (instruction >> 7) & 0x1F,
-            "imm": imm,
-        }
-
-    @staticmethod
-    def decode_b(instruction):
-        imm = (
-            (((instruction >> 31) & 0x1) << 12)
-            | (((instruction >> 25) & 0x3F) << 5)
-            | (((instruction >> 8) & 0xF) << 1)
-            | (((instruction >> 7) & 0x1) << 11)
-        )
-
-        if imm & 0x1000:
-            imm -= 0x2000
-
-        return {
-            "opcode": instruction & 0x7F,
-            "funct3": (instruction >> 12) & 0x7,
-            "rs1": (instruction >> 15) & 0x1F,
-            "rs2": (instruction >> 20) & 0x1F,
-            "imm": imm,
-        }
+    
