@@ -299,7 +299,7 @@ class DataPath:
             return value - 0x100000000
         return value
 
-    def print_data_memory(self, filename="bin/data_memory.txt"):
+    def print_data_memory(self, filename="out/data_memory.txt"):
         with open(filename, "w") as file:
             for i in range(0, len(self.data_memory), 4):
                 chunk = self.data_memory[i:i + 4]

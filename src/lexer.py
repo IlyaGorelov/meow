@@ -1,69 +1,4 @@
-# Transform meow-file into a list of tokens below
-# 
-# Token is a tuple of:
-#       -type, 
-#       -value, 
-#       -line number,
-#       -character number in this line
-
-KEYWORDS = {
-    "int": "INT",
-    "long": "LONG",
-    "byte": "BYTE",
-    "string": "STRING",
-    "bool": "BOOL",
-    "true": "BOOL_LITERAL",
-    "false": "BOOL_LITERAL",
-    "void": "VOID",
-    "const": "CONST",
-    "while": "WHILE",
-    "if": "IF",
-    "else": "ELSE",
-    "new": "NEW",
-    "hear": "HEAR",
-    "meow": "MEOW",
-    "continue": "CONTINUE",
-    "break": "BREAK",
-    "return": "RETURN",
-}
-
-OPERATORS = {
-    "||": "LOGICAL_OR",
-    "&&": "LOGICAL_AND",
-    "==": "EQUAL",
-    "!=": "NOT_EQUAL",
-    "<=": "LESS_EQUAL",
-    ">=": "GREATER_EQUAL",
-    "=": "ASSIGN",
-    "|": "BITWISE_OR",
-    "&": "BITWISE_AND",
-    "<": "LESS",
-    ">": "GREATER",
-    "+": "PLUS",
-    "-": "MINUS",
-    "*": "MULTIPLY",
-    "/": "DIVIDE",
-    "%": "MODULO",
-}
-
-PUNCTUATION = {
-    "(": "LPAREN",
-    ")": "RPAREN",
-    "{": "LBRACE",
-    "}": "RBRACE",
-    "[": "LBRACKET",
-    "]": "RBRACKET",
-    ",": "COMMA",
-    ";": "SEMICOLON",
-}
-
-# some extra tokens:
-EOF = "EOF"
-COMMENT = "COMMENT"
-STRING_LITERAL="STRING_LITERAL"
-CHAR_LITERAL ="CHAR_LITERAL"
-NUMBER_LITERAL = "NUMBER_LITERAL"
-IDENTIFIER = "IDENTIFIER"
+from lexer_token_types import *
 
 class Lexer:
     def __init__(self, source):
@@ -74,10 +9,10 @@ class Lexer:
         self.tokens = []
 
     def add_token(self, token_type, value):
-        self.tokens.append((token_type, 
-                            value, 
-                            self.line,
-                            self.pos_in_line-1))
+        self.tokens.append({"type": token_type, 
+                            "value": value, 
+                            "line": self.line,
+                            "char": self.pos_in_line-1})
 
     def tokenize(self):
         while self.pos < len(self.source):
@@ -185,7 +120,7 @@ class Lexer:
 
         while (
             self.pos < len(self.source)
-            and self.source[self.pos].isdigit()
+            and (self.source[self.pos].isdigit() or self.source[self.pos] in "xb")
         ):
             self.pos += 1
             self.pos_in_line+=1
