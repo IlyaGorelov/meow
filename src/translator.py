@@ -47,7 +47,15 @@ def main(source, target):
     ast = Parser(tokens).parse()
     write_ast_to_yaml(ast, target.replace(".bin", "_AST.yaml"))
 
-    code = CodeGenerator().generate(ast)
+    code = CodeGenerator(ast).generate()
+    with open(target + ".asm", "w") as f:
+        f.write(code)
+        
+    code = CodeGenerator.resolve_data_references(code)
+    code = CodeGenerator.resolve_code_addresses(code)
+    
+    with open(target + ".s", "w") as f:
+        f.write(code)
 
     binary = Assembler.to_bytes(code)
 
@@ -62,8 +70,6 @@ def main(source, target):
         f.write(binary_data)
     with open(target + ".hex", "w") as f:
         f.write(hex)
-    with open(target + ".asm", "w") as f:
-        f.write(code)
 
 if __name__ == "__main__":
     assert len(sys.argv) == 3, "Wrong arguments: translator.py <input_file> <target_file>"

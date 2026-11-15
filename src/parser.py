@@ -208,6 +208,9 @@ class Parser:
             self.expect(PUNCTUATION["]"], "']' in array type")
             self.pos+=1
             return str(token_type).lower() + "[]"
+        
+        if token_type == TYPE_TOKENS["string"]:
+            token_type = "byte[]"
 
         return str(token_type).lower()
     
@@ -333,11 +336,26 @@ class Parser:
 
         if token_type == STRING_LITERAL:
             self.pos+=1
-            return self.node(STRING, value=value)
+            elements = []
+            i = 0
+
+            while i < len(value):
+                if value[i] == "\\" and i + 1 < len(value):
+                    cur_char = value[i:i + 2]
+                    i += 2
+                else:
+                    cur_char = value[i]
+                    i += 1
+
+                elements.append(
+                    self.node(BYTE, value=self.decode_char(cur_char))
+                )
+
+            return self.node(ARRAY_CREATION_WITH_ELEMENTS, elements=elements)
 
         if token_type == CHAR_LITERAL:
             self.pos+=1
-            return self.node(BYTE, value=value)
+            return self.node(BYTE, value=self.decode_char(value))
         
         if token_type == KEYWORDS["hear"]:
             return self.parse_input_call()
@@ -370,7 +388,6 @@ class Parser:
 
         if not self.is_current_token_in(PUNCTUATION[")"]):
             args.append(self.parse_expression())
-            self.pos+=1
 
             while self.is_current_token_in(PUNCTUATION[","]):
                 args.append(self.parse_expression())
@@ -498,6 +515,7 @@ class Parser:
 
         if self.is_current_token_in(IDENTIFIER) and self.next()["type"] == PUNCTUATION["("]:
             self.expect(IDENTIFIER, "function name")
+            self.pos+=1
             name = self.current()["value"]
             return self.parse_function_after_name(declared_type, name)
 
@@ -611,6 +629,21 @@ class Parser:
             self.expect(PUNCTUATION[";"])
             self.pos += 1
             
-            return self.node(VECTOR_SET_LENGTH, value = value)
+            return self.node(SET_VECTOR_LENGTH, value = value)
         
-    
+    def decode_char(self, value):
+        escapes = {
+            r"\n": "\n",
+            r"\r": "\r",
+            r"\t": "\t",
+            r"\0": "\0",
+            r"\\": "\\",
+            r"\'": "'",
+            r'\"': '"',
+        }
+
+        if value in escapes:
+            return ord(escapes[value])
+
+        if len(value) == 1:
+            return ord(value)

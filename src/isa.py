@@ -48,7 +48,6 @@ opcode_to_binary = {
 # I-type: funct3
 i_instructions = {
     "addi":  0b000,
-    "mv": 0b000,
     "slti":  0b001,
     "sltiu": 0b010,
     "xori":  0b011,
@@ -74,6 +73,12 @@ r_instructions = {
     "mulh": (0b100, 0b0000001),
     "div":  (0b101, 0b0000001),
     "rem":  (0b110, 0b0000001),
+    
+    "vadd":  (0b000, 0b0000000),
+    "vsub":  (0b001, 0b0000000),
+    "vmul":  (0b010, 0b0000000),
+    "vdiv":  (0b011, 0b0000000),
+    "vslt":  (0b100, 0b0000000),
 }
 
 # B-type: funct3
@@ -97,19 +102,21 @@ store_instructions = {
         "vstore": 0
     }
 
-vector_instructions = {
-    "add":  (0b000, 0b0000000),
-    "sub":  (0b001, 0b0000000),
-    "mul":  (0b010, 0b0000000),
-    "div":  (0b011, 0b0000000),
-    "slt":  (0b100, 0b0000000),
-}
 
 binary_to_opcode = {
     value: key for key, value in opcode_to_binary.items()
 }
 
 registers = {
+    "v0":0,
+    "v1":1,
+    "v2":2,
+    "v3":3,
+    "v4":4,
+    "v5":5,
+    "v6":6,
+    "v7":7,
+    
     "zero": 0,
     "ra": 1,
     "sp": 2,
@@ -430,7 +437,7 @@ class Assembler:
                 int(imm,0)
             )
             
-        if mnemonic in vector_instructions:
+        if mnemonic in ("vadd", "vsub", "vmul", "vdiv", "vslt"):
             rd, rs1, rs2 = args
             
             funct3, funct7 = r_instructions[mnemonic]
@@ -444,7 +451,7 @@ class Assembler:
                 Assembler.get_register_number(rs2),
             )
             
-        if mnemonic == "vsetvli":
+        if mnemonic == "vsetvl":
             rd, imm , _ = args
             
             return Assembler.encode_u(
@@ -461,7 +468,6 @@ class Assembler:
 
         for line_number, line in enumerate(code.splitlines(), 1):
             instruction = Assembler.assemble_instruction(line)
-            print(instruction)
 
             if instruction is not None:
                 machine_code.append(instruction)

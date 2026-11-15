@@ -107,13 +107,21 @@ class Lexer:
     def read_char(self):
         self.pos += 1
         self.pos_in_line += 1
-
-        char = self.source[self.pos]
-
-        self.pos += 2
-        self.pos_in_line+=2
+        start = self.pos
         
+        while self.pos < len(self.source):
+            char = self.source[self.pos]
+            if char=="'":
+                break
+            self.pos+=1
+            self.pos_in_line+=1
+
+        char = self.source[start:self.pos]
+
+        self.pos += 1
+        self.pos_in_line+=1
         self.add_token(CHAR_LITERAL, char)
+        print(self.tokens[-1])
 
     def read_number(self):
         start = self.pos

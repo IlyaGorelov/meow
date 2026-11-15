@@ -1,30 +1,64 @@
+from parser_node_types import *
+
+# TODO
+# allow local arrays
 class CodeGeneratorError(Exception):
     pass
 
+
 class CodeGenerator:
-    def __init__(self):
+    def __init__(self, ast):
+        self.ast = ast
         self.code = []
         self.data = []
-
-        self.globals = {}
-
         self.functions = {}
-
+        self.globals = {}
         self.scopes = []
+        self.stack_depth = 0
+        self.loop_stack = []
+
+        self.vl = 4
 
         self.current_function = None
         self.current_function_end = None
-        self.current_frame_size = 0
-
-        self.temp_stack_depth = 0
 
         self.label_counter = 0
-        self.string_counter = 0
 
-        self.loop_stack = []
+    def generate(self):
+        body = self.ast.get("body", [])
+
+        for node in body:
+            if node["type"] == FUNCTION:
+                name = node["name"]
+                self.functions[name] = node
+
+        self.append_label("_start")
+        self.append("addi sp, zero, 300")  # init sp
+
+        for node in body:
+            if node["type"] == FUNCTION:
+                continue
+
+            self.generate_statement(node)
+
+        self.append("halt")
+
+        for func_node in self.functions.values():
+            self.generate_function(func_node)
+
+        output = []
+
+        if self.data:
+            output.append(".data")
+            output.extend(self.data)
+
+        output.append(".text")
+        output.extend(self.code)
+
+        return "\n".join(output) + "\n"
 
     def error(self, message, node=None):
-        line = node.get("line")
+        line = node.get("line") if node is not None else None
 
         if line is not None:
             raise CodeGeneratorError(f"Line {line}: {message}")
@@ -37,478 +71,98 @@ class CodeGenerator:
     def append_label(self, label):
         self.code.append(f"{label}:")
 
-    def label_with_prefix(self, prefix="L"):
-        label = f".{prefix}_{self.label_counter}"
-        self.label_counter += 1
-        return label
-
-    def push(self, register):
-        self.append("addi sp, sp, -4")
-        self.append(f"sw {register}, 0(sp)")
-        self.temp_stack_depth += 4
-
-    def pop(self, register):
-        self.append(f"lw {register}, 0(sp)")
-        self.append("addi sp, sp, 4")
-        self.temp_stack_depth -= 4
-
-    def load_immediate(self, register, value):
-        value &= 0xFFFFFFFF
-
-        if value >= 0x80000000:
-            value -= 0x100000000
-
-        if -2048 <= value <= 2047:
-            self.append(f"addi {register}, zero, {value}")
-            return
-
-        upper = (value + 0x800) >> 12
-        lower = value - (upper << 12)
-
-        upper &= 0xFFFFF
-        if upper >= 0x80000:
-            upper -= 0x100000
-
-        self.append(f"lui {register}, {upper}")
-
-        if lower != 0:
-            self.append(f"addi {register}, {register}, {lower}")
-
-    def base_type(self, type_name):
-        if type_name.endswith("[]"):
-            return type_name[:-2]
-        return type_name
-
-    def is_array_type(self, type_name):
-        return type_name.endswith("[]")
-
-    def is_pointer_type(self, type_name):
-        return type_name == "string" or self.is_array_type(type_name)
-
-    def type_size(self, type_name):
-        if self.is_pointer_type(type_name):
-            return 4
-
-        sizes = {"byte": 1, "bool": 1, "int": 4, "long": 8}
-
-        return sizes[type_name]
-
-    def element_size(self, type_name):
-        if type_name == "string":
-            return 1
-        if self.is_array_type(type_name):
-            return self.type_size(self.base_type(type_name))
-
-    def type_alignment(self, type_name):
-        return min(self.type_size(type_name), 8)
-
-    def split_long(self, value):
-        value &= 0xFFFFFFFFFFFFFFFF
-
-        high = (value >> 32) & 0xFFFFFFFF
-        low = value & 0xFFFFFFFF
-
-        if high >= 0x80000000:
-            high -= 0x100000000
-
-        if low >= 0x80000000:
-            low -= 0x100000000
-
-        return high, low
-
-    def load_long_immediate(self, high_register, low_register, value):
-        high, low = self.split_long(value)
-
-        self.load_immediate(high_register, high)
-        self.load_immediate(low_register, low)
-
-    def load_long(self, offset, high_register="t0", low_register="t1"):
-        self.append(f"lw {high_register}, {offset}(s0)")
-        self.append(f"lw {low_register}, {offset + 4}(s0)")
-
-    def store_long(self, high_register, low_register, offset):
-        self.append(f"sw {high_register}, {offset}(s0)")
-        self.append(f"sw {low_register}, {offset + 4}(s0)")
-
-    def load_long_global(self, label):
-        self.load_global_address("t2", label)
-        self.append("lw t0, 0(t2)")
-        self.append("lw t1, 4(t2)")
-
-    def store_long_global(self, label, high_register="t0", low_register="t1"):
-        self.load_global_address("t2", label)
-        self.append(f"sw {high_register}, 0(t2)")
-        self.append(f"sw {low_register}, 4(t2)")
-
-    def decode_char(self, value):
-        value = value[1:-1]
-
-        escapes = {
-            r"\n": "\n",
-            r"\r": "\r",
-            r"\t": "\t",
-            r"\0": "\0",
-            r"\\": "\\",
-            r"\'": "'",
-            r'\"': '"',
-        }
-
-        if value in escapes:
-            return ord(escapes[value])
-
-        if len(value) == 1:
-            return ord(value)
-
-    def argument_slot_size(self, type_name):
-        return max(4, self.type_size(type_name))
-
-    def argument_word_count(self, type_name):
-        return 2 if self.type_size(type_name) == 8 else 1
-
-    def calculate_argument_layout(self, type_names):
-        layout = []
-        register_index = 0
-        stack_offset = 0
-        stack_started = False
-
-        for type_name in type_names:
-            size = self.type_size(type_name)
-            slot_size = self.argument_slot_size(type_name)
-            word_count = self.argument_word_count(type_name)
-
-            if (
-                not stack_started
-                and register_index + word_count <= 8
-            ):
-                item = {
-                    "type": type_name,
-                    "size": size,
-                    "slot_size": slot_size,
-                    "location": "register",
-                    "register_index": register_index,
-                    "stack_offset": None,
-                }
-
-                register_index += word_count
-
-            else:
-                stack_started = True
-
-                item = {
-                    "type": type_name,
-                    "size": size,
-                    "slot_size": slot_size,
-                    "location": "stack",
-                    "register_index": None,
-                    "stack_offset": stack_offset,
-                }
-
-                stack_offset += slot_size
-
-            layout.append(item)
-
-        return layout
-
-    def generate(self, ast):
-        self.code = []
-        self.data = []
-        self.globals = {}
-        self.functions = {}
-        self.scopes = []
-        self.current_function = None
-        self.current_function_end = None
-        self.current_frame_size = 0
-        self.temp_stack_depth = 0
-        self.label_counter = 0
-        self.string_counter = 0
-        self.loop_stack = []
-
-        body = ast.get("body", [])
-
-        for node in body:
-            if node.get("type") == "function":
-                name = node["name"]
-                self.functions[name] = node
-
-        self.append_label("_start")
-        self.append("addi s1, zero,  100") # init heap pointer
-        self.append("addi sp,zero, 300") # init heap pointer
-
-        for node in body:
-            if node.get("type") == "function":
-                continue
-
-            self.generate_statement(node)
-
-        self.append("halt")
-
-        for name, function_node in self.functions.items():
-            self.generate_function(function_node)
-
-        code = self.resolve_code_addresses()
-        code = self.resolve_data_references(code)
-
-        output = []
-
-        if self.data:
-            output.append(".data")
-            output.extend(self.data)
-
-        output.append(".text")
-        output.extend(code)
-
-        return "\n".join(output) + "\n"
-
-    def collect_local_declarations(self, body):
-        declarations = []
-
-        def visit_statement(node):
-            node_type = node.get("type")
-
-            if node_type in ("var_declaration", "const_declaration"):
-                declarations.append(node)
-                return
-
-            if node_type == "if":
-                for statement in node.get("body", []):
-                    visit_statement(statement)
-
-                for statement in node.get("else_body") or []:
-                    visit_statement(statement)
-
-                return
-
-            if node_type == "while":
-                for statement in node.get("body", []):
-                    visit_statement(statement)
-
-                return
-
-        for statement in body:
-            visit_statement(statement)
-
-        return declarations
-
-    def prepare_function_frame(self, function_node):
-        slots = self.collect_local_declarations(
-            function_node.get("body", [])
-        )
-
-        offset = 0
-
-        for node in slots:
-            alignment = self.type_alignment(node["var_type"])
-            offset = (offset + alignment - 1) & ~(alignment - 1)
-            node["_slot_offset"] = offset
-            offset += self.type_size(node["var_type"])
-
-        frame_size = (offset + 8 + 7) & ~7
-
-        self.current_frame_size = frame_size
-        return slots, frame_size
-    
-    def generate_function(self, node):
-        name = node["name"]
-        params = node.get("params", [])
-        body = node.get("body", [])
-
-        previous_function = self.current_function
-        previous_end = self.current_function_end
-        previous_frame_size = self.current_frame_size
-
-        _, frame_size = self.prepare_function_frame(node)
-        previous_scopes = self.scopes
-        previous_temp_depth = self.temp_stack_depth
-
-        self.current_function = name
-        self.current_function_end = self.label_with_prefix(f"{name}_end")
-        self.current_frame_size = frame_size
-        self.scopes = [{}]
-        self.temp_stack_depth = 0
-
-        self.append_label(f"fn_{name}")
-
-        self.append(f"addi sp, sp, -{frame_size}")
-        self.append(f"sw ra, {frame_size - 4}(sp)")
-        self.append(f"sw s0, {frame_size - 8}(sp)")
-        self.append("mv s0, sp")
-
-        param_types = [
-            parameter["param_type"]
-            for parameter in params
-        ]
-
-        layout = self.calculate_argument_layout(param_types)
-
-        for parameter, item in zip(params, layout):
-            param_name = parameter["name"]
-            param_type = parameter["param_type"]
-
-            if item["location"] == "register":
-                self.scopes[-1][param_name] = {
-                    "type": param_type,
-                    "storage": "argument_register",
-                    "register_index": item["register_index"],
-                }
-            else:
-                self.scopes[-1][param_name] = {
-                    "type": param_type,
-                    "storage": "argument_stack",
-                    "offset": frame_size + item["stack_offset"],
-                }
-
-        self.generate_scoped_block(body)
-
-        self.append_label(self.current_function_end)
-
-        self.append(f"lw ra, {frame_size - 4}(s0)")
-        self.append(f"lw t0, {frame_size - 8}(s0)")
-        self.append(f"addi sp, s0, {frame_size}")
-        self.append("mv s0, t0")
-        self.append("jalr zero, 0(ra)")
-
-        self.current_function = previous_function
-        self.current_function_end = previous_end
-        self.current_frame_size = previous_frame_size
-        self.scopes = previous_scopes
-        self.temp_stack_depth = previous_temp_depth
-
-    def store_register_to_local(self, register, offset, type_name):
-        base = self.base_type(type_name)
-
-        if self.is_pointer_type(type_name) or base == "int":
-            self.append(f"sw {register}, {offset}(s0)")
-        else:
-            self.append(f"sb {register}, {offset}(s0)")
-    
-    def lookup_variable(self, name, node=None):
-        for scope in reversed(self.scopes):
-            if name in scope:
-                return scope[name]
-
-        if name in self.globals:
-            return self.globals[name]
-
-    def load_global_address(self, register, label):
-        self.append(f"lui {register}, %hi({label})")
-        self.append(f"addi {register}, {register}, %lo({label})")
-
-    def load_variable(self, name, node=None):
-        info = self.lookup_variable(name, node)
-        base = self.base_type(info["type"])
-
-        if info["storage"] == "argument_register":
-            register_index = info["register_index"]
-
-            if base == "long":
-                self.append(f"mv t0, a{register_index}")
-                self.append(f"mv t1, a{register_index + 1}")
-            else:
-                self.append(f"mv t0, a{register_index}")
-
-            return
-
-        instruction = "lb" if base in ("byte", "bool") and not self.is_pointer_type(info["type"]) else "lw"
-
-        if info["storage"] == "global":
-            self.load_global_address("t2", info["label"])
-            if base == "long":
-                self.append("lw t0, 0(t2)")
-                self.append("lw t1, 4(t2)")
-            else:
-                self.append(f"{instruction} t0, 0(t2)")
-        elif base == "long":
-            self.append(f"lw t0, {info['offset']}(s0)")
-            self.append(f"lw t1, {info['offset'] + 4}(s0)")
-        else:
-            self.append(f"{instruction} t0, {info['offset']}(s0)")
-    
-    def store_variable(self, name, register, node=None):
-        info = self.lookup_variable(name, node)
-        base = self.base_type(info["type"])
-
-        if info["storage"] == "argument_register":
-            register_index = info["register_index"]
-            self.append(f"mv a{register_index}, {register}")
-            return
-
-        instruction = "sb" if base in ("byte", "bool") and not self.is_pointer_type(info["type"]) else "sw"
-
-        if info["storage"] == "global":
-            self.load_global_address("t2", info["label"])
-            self.append(f"{instruction} {register}, 0(t2)")
-        else:
-            self.append(f"{instruction} {register}, {info['offset']}(s0)")
-
     def generate_statement(self, node):
         node_type = node.get("type")
 
-        if node_type in ("var_declaration", "const_declaration"):
+        if node_type in (VAR_DECLARATION, CONST_DECLARATION):
             self.generate_declaration(node)
 
-        elif node_type == "assignment":
+        elif node_type == ASSIGNMENT:
             self.generate_assignment(node)
 
-        elif node_type == "if":
-            self.generate_if(node)
+        elif node_type == OUTPUT:
+            self.generate_output(node)
 
-        elif node_type == "while":
-            self.generate_while(node)
-
-        elif node_type == "continue":
+        elif node_type == CONTINUE_NODE:
             self.generate_continue(node)
 
-        elif node_type == "break":
+        elif node_type == BREAK_NODE:
             self.generate_break(node)
 
-        elif node_type == "return":
-            self.generate_return(node)
-
-        elif node_type == "call_statement":
+        elif node_type == CALL_STATEMENT:
             self.generate_expression(node["call"])
 
-        elif node_type == "output":
-            self.generate_output(node["value"], node)
+        elif node_type == RETURN_NODE:
+            self.generate_return(node)
 
-        elif node_type == "comment":
+        elif node_type == COMMENT_NODE:
             pass
 
-        elif node_type == "function":
-            pass
+        elif node_type == WHILE_NODE:
+            self.generate_while(node)
+
+        elif node_type == IF_NODE:
+            self.generate_if(node)
+
+        elif node_type == SET_VECTOR_LENGTH:
+            self.generate_set_vector_length(node)
 
         else:
             self.error(
-                f"Unsupported statement type: {node_type}",
+                f"Unsupported statement: {node_type}",
                 node,
             )
 
     def generate_declaration(self, node):
+        is_const = node["type"] == CONST_DECLARATION
         name = node["name"]
-        type_name = node["var_type"]
+        type_name = str(node["var_type"])
         value = node.get("value")
 
         if self.current_function is None:
             label = f"global_{name}"
 
+            if name in self.globals.keys():
+                self.error(f"{name} is already defined",
+                           node)
+
             self.globals[name] = {
                 "type": type_name,
                 "label": label,
                 "storage": "global",
+                "is_const": is_const
             }
 
-            if type_name == "long":
+            if type_name == LONG:
                 self.data.append(f"{label}: .long 0")
-            elif type_name in ("byte", "bool"):
+            elif type_name in (BYTE, BOOL):
                 self.data.append(f"{label}: .byte 0")
-            elif type_name in ("int", "string") or self.is_array_type(type_name):
+            elif type_name.endswith("[]"):
+                self.declare_array(node)
+                return
+            elif type_name == INT:
                 self.data.append(f"{label}: .word 0")
+            elif type_name == "int128":
+                if value["type"]== ARRAY_CREATION_WITH_ELEMENTS:
+                    elements = [str(e["value"]) for e in value["elements"]]
+                    elements_line = ', '.join(elements)
+                    self.data.append(f"{label}: .word {elements_line}")
+                    return
+                self.data.append(f"{label}: .word 0,0,0,0")
 
-            if value is not None:
-                self.generate_expression(value)
-                if type_name == "long":
-                    self.store_long_global(label)
-                else:
-                    self.store_variable(name, "t0", node)
+            if value == None:
+                self.error("Decalaration without a value", node)
+
+            self.generate_expression(value)
+
+            if type_name == LONG:
+                self.store_long_global(label)
+            elif type_name == "int128":
+                self.code.pop(-1)
+                self.append("vload v0, 0(t2)")
+                self.store_vector_global(label)
+            else:
+                self.store_variable(name, "t0")
 
             return
 
@@ -520,24 +174,69 @@ class CodeGenerator:
             "storage": "local",
         }
 
-        if value is not None:
-            self.generate_expression(value)
-            if self.base_type(type_name) == "long":
-                self.store_long("t0", "t1", offset)
-            else:
-                self.store_register_to_local("t0", offset, type_name)
+        self.generate_expression(value)
+        if self.base_type(type_name) == LONG:
+            self.store_long("t0", "t1", offset)
+        elif type_name == "int128":
+            self.append(f"vstore v0, {offset}(s0)")
+        else:
+            self.store_register_to_local("t0", offset, type_name)
+
+    def store_long(self, high_register, low_register, offset):
+        self.append(f"sw {high_register}, {offset}(s0)")
+        self.append(f"sw {low_register}, {offset + 4}(s0)")
+
+    def store_register_to_local(self, register, offset, type_name):
+        base = self.base_type(type_name)
+
+        instruction = "sb" if base in (BYTE, BOOL) else "sw"
+
+        self.append(f"{instruction} {register}, {offset}(s0)")
+
+    def declare_array(self, node):
+        element_type = node["var_type"][:-2]
+        value = node["value"]
+        name = node["name"]
+
+        label = f"global_{name}:"
+
+        directives = {
+            INT: ".word",
+            LONG: ".long",
+            BYTE: ".byte",
+            BOOL: ".byte",
+        }
+
+        directive = directives.get(element_type)
+
+        if value["type"] == ARRAY_CREATION_WITH_ELEMENTS:
+            elements = [str(e["value"]) for e in value["elements"]] + ['0']
+        else:
+            size_node = value["size"]
+
+            if size_node["type"] != INT:
+                self.error("Array expects a constant length", node)
+
+            size = size_node["value"]
+
+            elements = ["0"] * (size+1) # data + null-terminator 
+
+        self.data.append(f"{label} {directive} {', '.join(elements)}")
 
     def generate_assignment(self, node):
         target = node["target"]
         value = node["value"]
 
-        if target["type"] == "variable":
+        if target["type"] == VARIABLE:
             name = target["name"]
-            info = self.lookup_variable(name, target)
+            info = self.lookup_variable(name)
+
+            if info.get("is_const", False):
+                self.error("Can't assign to const", node)
 
             self.generate_expression(value)
 
-            if self.base_type(info["type"]) == "long":
+            if info["type"] == LONG:
                 if info["storage"] == "global":
                     self.store_long_global(info["label"])
                 elif info["storage"] == "argument_register":
@@ -547,83 +246,43 @@ class CodeGenerator:
                 else:
                     self.append(f"sw t0, {info['offset']}(s0)")
                     self.append(f"sw t1, {info['offset'] + 4}(s0)")
+            elif info["type"] == "int128":
+                if info["storage"] == "global":
+                    self.store_vector_global(info["label"])
+                else:
+                    self.append(f"vstore v0, {info['offset']}(s0)")
             else:
-                self.store_variable(name, "t0", target)
+                self.store_variable(name, "t0")
 
-            return
-
-        if target["type"] == "index":
+        elif target["type"] == INDEX:
             self.generate_array_address(target)
             self.push("t2")
-
             self.generate_expression(value)
-
             self.pop("t2")
 
             element_type = self.expression_type(target)
-            base = self.base_type(element_type)
 
-            if base == "long":
+            if element_type == LONG:
                 self.append("sw t0, 0(t2)")
                 self.append("sw t1, 4(t2)")
-            elif base in ("byte", "bool"):
+            elif element_type in (BYTE, BOOL):
                 self.append("sb t0, 0(t2)")
             else:
                 self.append("sw t0, 0(t2)")
 
-            return
-
-    def generate_if(self, node):
-        else_label = self.label_with_prefix("else")
-        end_label = self.label_with_prefix("endif")
-
-        self.generate_expression(node["condition"])
-        self.append(f"beq t0, zero, {else_label}")
-
-        self.generate_scoped_block(node.get("body", []))
-        self.append(f"j {end_label}")
-
-        self.append_label(else_label)
-
-        else_body = node.get("else_body")
-        if else_body is not None:
-            self.generate_scoped_block(else_body)
-
-        self.append_label(end_label)
-
-    def generate_while(self, node):
-        start_label = self.label_with_prefix("while_start")
-        end_label = self.label_with_prefix("while_end")
-
-        self.append(f"{start_label}:")
-
-        self.generate_expression(node["condition"])
-        self.append(f"beq t0, zero, {end_label}")
-
-        self.loop_stack.append((start_label, end_label))
-        try:
-            self.generate_scoped_block(node["body"])
-        finally:
-            self.loop_stack.pop()
-
-        self.append(f"j {start_label}")
-        self.append(f"{end_label}:")
-    
-    def generate_scoped_block(self, body):
-        self.scopes.append({})
-        try:
-            for statement in body:
-                self.generate_statement(statement)
-        finally:
-            self.scopes.pop()
+    def generate_output(self, node):
+        self.generate_expression(node["value"])
+        self.append("out t0")
 
     def generate_continue(self, node):
         start_label, _ = self.loop_stack[-1]
         self.append(f"j {start_label}")
+        return
 
     def generate_break(self, node):
         _, end_label = self.loop_stack[-1]
         self.append(f"j {end_label}")
+        return
 
     def generate_return(self, node):
         value = node.get("value")
@@ -633,7 +292,7 @@ class CodeGenerator:
 
             return_type = self.functions[self.current_function]["return_type"]
 
-            if self.base_type(return_type) == "long":
+            if return_type == LONG:
                 self.append("mv a0, t0")
                 self.append("mv a1, t1")
             else:
@@ -641,86 +300,90 @@ class CodeGenerator:
 
         self.append(f"j {self.current_function_end}")
 
-    def generate_output(self, value, node=None):
-        self.generate_expression(value)
-        self.append("out t0")
+    def generate_while(self, node):
+        start_label = self.label_with_prefix("while_start")
+        end_label = self.label_with_prefix("while_end")
+
+        self.append(f"{start_label}:")
+        self.generate_expression(node["condition"])
+        self.append(f"beq t0, zero, {end_label}")
+
+        self.loop_stack.append((start_label, end_label))
+
+        for statement in node["body"]:
+            self.generate_statement(statement)
+
+        self.loop_stack.pop()
+
+        self.append(f"j {start_label}")
+        self.append(f"{end_label}:")
+
+        return
+
+    def generate_if(self, node):
+        else_label = self.label_with_prefix("else")
+        end_label = self.label_with_prefix("endif")
+
+        self.generate_expression(node["condition"])
+        self.append(f"beq t0, zero, {else_label}")
+
+        for statement in node["body"]:
+            self.generate_statement(statement)
+        self.append(f"j {end_label}")
+
+        self.append_label(else_label)
+
+        else_body = node.get("else_body")
+        if else_body is not None:
+            for statement in else_body:
+                self.generate_statement(statement)
+
+        self.append_label(end_label)
+
+    def generate_set_vector_length(self, node):
+        value = node["value"]
+
+        if value["type"] != INT:
+            self.error(f"setLength expects number not {value["type"]}", node)
+
+        self.append(f"vsetvl s1, {value["value"]}")
+        self.vl = value["value"]
+        return
 
     def generate_expression(self, node):
         node_type = node.get("type")
 
-        if node_type == "int":
+        if node_type in (INT, BYTE):
             self.load_immediate("t0", int(node["value"]))
 
-        elif node_type == "long":
+        elif node_type == LONG:
             self.load_long_immediate("t0", "t1", int(node["value"]))
 
-        elif node_type == "byte":
-            try:
-                value = self.decode_char(node["value"])
-            except (ValueError, TypeError) as exc:
-                self.error(str(exc), node)
-
-            self.load_immediate("t0", value)
-
-        elif node_type == "bool":
+        elif node_type == BOOL:
             value = node["value"]
-
-            if isinstance(value, str):
-                value = value.lower() == "true"
-
+            value = value.lower() == "true"
             self.load_immediate("t0", int(bool(value)))
 
-        elif node_type == "string":
-            self.generate_string(node["value"])
-
-        elif node_type == "variable":
+        elif node_type == VARIABLE:
             self.load_variable(node["name"], node)
 
-        elif node_type == "index":
+        elif node_type == INDEX:
             self.generate_array_access(node)
 
-        elif node_type == "binary":
+        elif node_type == BINARY:
             self.generate_binary(node)
 
-        elif node_type == "unary":
+        elif node_type == UNARY:
             self.generate_unary(node)
 
-        elif node_type == "function_call":
+        elif node_type == FUNCTION_CALL:
             self.generate_function_call(node)
 
-        elif node_type == "input":
+        elif node_type == INPUT:
             self.append("in t0")
             self.append("addi t1, zero, 0xFF")
             self.append("and t0, t0, t1")
-
-        elif node_type == "array_creation":
-            self.generate_array_creation(node)
-    
-    def generate_string(self, value):
-        label = f"string_{self.string_counter}"
-        self.string_counter += 1
-
-        string_bytes = list(value.encode("utf-8"))
-        string_bytes.append(0)
-
-        self.data.append(
-            f"{label}: .byte " + ", ".join(map(str, string_bytes))
-        )
-
-        self.load_global_address("t0", label)
-
-    def generate_unary(self, node):
-        operand_type = self.expression_type(node["operand"])
-
-        self.generate_expression(node["operand"])
-
-        if self.base_type(operand_type) == "long":
-            self.append("sub t1, zero, t1")
-            self.append("sltu t2, zero, t1")
-            self.append("sub t0, zero, t0")
-            self.append("sub t0, t0, t2")
-        else:
-            self.append("sub t0, zero, t0")
+        return
 
     def generate_binary(self, node):
         operator = node["operator"]
@@ -728,31 +391,36 @@ class CodeGenerator:
         left_type = self.expression_type(node["left"])
         right_type = self.expression_type(node["right"])
 
-        is_long = (
-            self.base_type(left_type) == "long"
-            or self.base_type(right_type) == "long"
-        )
+        is_long = (self.base_type(left_type) == LONG
+                   or self.base_type(right_type) == LONG)
+
+        is_vector = (self.base_type(left_type) == "int128"
+                     or self.base_type(right_type) == "int128")
 
         if is_long:
             self.generate_long_binary(node)
             return
 
+        if is_vector:
+            self.generate_vector_binary(node)
+            return
+
         if operator in ("&&", "||"):
-            true_or_false = self.label_with_prefix("logic_result")
+            result = self.label_with_prefix("logic_result")
             end_label = self.label_with_prefix("logic_end")
             self.generate_expression(node["left"])
 
             if operator == "&&":
-                self.append(f"beq t0, zero, {true_or_false}")
+                self.append(f"beq t0, zero, {result}")
                 result_when_skipped = 0
             else:
-                self.append(f"bne t0, zero, {true_or_false}")
+                self.append(f"bne t0, zero, {result}")
                 result_when_skipped = 1
 
             self.generate_expression(node["right"])
             self.append("sltu t0, zero, t0")
             self.append(f"j {end_label}")
-            self.append_label(true_or_false)
+            self.append_label(result)
             self.load_immediate("t0", result_when_skipped)
             self.append_label(end_label)
             return
@@ -800,7 +468,7 @@ class CodeGenerator:
         elif operator == ">=":
             self.append("slt t0, t0, t1")
             self.append("xori t0, t0, 1")
-
+        return
 
     def generate_long_binary(self, node):
         operator = node["operator"]
@@ -809,6 +477,7 @@ class CodeGenerator:
         if self.base_type(self.expression_type(node["left"])) != "long":
             self.append("slt t1, t0, zero")
             self.append("sub t1, zero, t1")
+
         self.push("t0")
         self.push("t1")
 
@@ -888,18 +557,262 @@ class CodeGenerator:
             self.append("addi t0, zero, 1")
 
             self.append_label(end_label)
+            return
+
+        else:
+            self.error(f"Unsupported long operator: {operator}", node)
+
+        return
+
+    def generate_vector_binary(self, node):
+        operator = node["operator"]
+
+        self.generate_expression(node["left"])
+        self.push_vector("v0")
+
+        self.generate_expression(node["right"])
+        self.pop_vector("v1")
+
+        operations = {
+            "+": "vadd",
+            "-": "vsub",
+            "*": "vmul",
+            "/": "vdiv"
+        }
+
+        if operator in operations:
+            self.append(f"{operations[operator]} v0, v0, v1")
+            return
+
+        elif operator == "<":
+            self.append("vslt v0, v1, v0")
+
+        elif operator == ">":
+            self.append("vslt v0, v0, v1")
+
+    def generate_unary(self, node):
+        operand_type = self.expression_type(node["operand"])
+
+        self.generate_expression(node["operand"])
+
+        if self.base_type(operand_type) == LONG:
+            self.append("sub t1, zero, t1")
+            self.append("sltu t2, zero, t1")
+            self.append("sub t0, zero, t0")
+            self.append("sub t0, t0, t2")
+        else:
+            self.append("sub t0, zero, t0")
+        return
+
+    def generate_function_call(self, node):
+        function_name = node["name"]
+        args = node.get("args", [])
+
+        function = self.functions[function_name]
+
+        arg_types = [
+            self.expression_type(arg)
+            for arg in args
+        ]
+
+        reg_index = 0
+
+        for i in range(len(args)):
+            arg = args[i]
+            arg_type = arg_types[i]
+
+            self.generate_expression(arg)
+
+            if arg_type == LONG:
+                self.push(f"a{reg_index}")
+                self.append(f"mv a{reg_index}, t0")
+                reg_index += 1
+                self.push(f"a{reg_index}")
+                self.append(f"mv a{reg_index}, t1")
+                reg_index += 1
+
+            elif arg_type in (BYTE, BOOL, INT):
+                self.push(f"a{reg_index}")
+                self.append(f"mv a{reg_index}, t0")
+                reg_index += 1
+                
+            elif arg_type.endswith("[]"):
+                self.push(f"a{reg_index}")
+                self.append(f"mv a{reg_index}, t0")
+                reg_index += 1
+
+        self.append(f"jal ra, fn_{function_name}")
+
+        return_type = function["return_type"]
+
+        if self.base_type(return_type) == LONG:
+            self.append("mv t0, a0")
+            self.append("mv t1, a1")
+
+        elif return_type != "void":
+            self.append("mv t0, a0")
+
+        for i in range(reg_index-1, -1, -1):
+            self.pop(f"a{i}")
+
+        return
+
+    def generate_function(self, node):
+        name = node["name"]
+        params = node.get("params", [])
+        body = node.get("body", [])
+
+        self.scopes = [{}]
+
+        frame_size = self.calculate_frame(node)
+        self.current_function_end = self.label_with_prefix(f"{name}_end")
+        self.current_function = name
+
+        self.append_label(f"fn_{name}")
+        self.append(f"addi sp, sp, -{frame_size}")
+        self.append(f"sw ra, {frame_size - 4}(sp)")
+        self.append(f"sw s0, {frame_size - 8}(sp)")
+        self.append("mv s0, sp")
+
+        param_types = [
+            parameter["param_type"]
+            for parameter in params
+        ]
+
+        reg_index = 0
+        for parameter in params:
+            param_name = parameter["name"]
+            param_type = parameter["param_type"]
+
+            self.scopes[-1][param_name] = {
+                "type": param_type,
+                "storage": "argument_register",
+                "register_index": reg_index,
+            }
+
+            reg_index += 2 if param_type == LONG else 1
+
+        self.scopes.append({})
+        for statement in body:
+            self.generate_statement(statement)
+        self.scopes.pop()
+
+        self.append_label(self.current_function_end)
+
+        self.append(f"lw ra, {frame_size - 4}(s0)")
+        self.append(f"lw t0, {frame_size - 8}(s0)")
+        self.append(f"addi sp, s0, {frame_size}")
+        self.append("mv s0, t0")
+        self.append("jalr zero, 0(ra)")
+        return
+
+    def calculate_frame(self, func_node):
+        slots = self.collect_local_declarations(func_node.get("body", []))
+        offset = 0
+
+        for node in slots:
+            node["_slot_offset"] = offset
+            offset += self.local_storage_size(node)
+
+        frame_size = offset + 8 # ra and s0
+
+        return frame_size
     
+    def local_storage_size(self, node):
+        type_name = node["var_type"]
+
+        if type_name == "int128":
+            self.error("Local vectors are not supported yet:(",node)
+
+        if not type_name.endswith("[]"):
+            return self.type_size(type_name)
+        
+        self.error("Local arrays are not supported yet:(",node)
+
+    def collect_local_declarations(self, body):
+        declarations = []
+
+        def visit_statement(node):
+            node_type = node["type"]
+
+            if node_type in ("var_declaration", "const_declaration"):
+                declarations.append(node)
+                return
+
+            if node_type == "if":
+                for statement in node.get("body", []):
+                    visit_statement(statement)
+
+                for statement in node.get("else_body") or []:
+                    visit_statement(statement)
+                return
+
+            if node_type == "while":
+                for statement in node.get("body", []):
+                    visit_statement(statement)
+                return
+
+        for statement in body:
+            visit_statement(statement)
+
+        return declarations
+
+    def replace_code_labels_with_addresses():
+        return
+
+    def replace_data_labels_with_addresses():
+        return
+
+    def store_long_global(self, label, high_register="t0", low_register="t1"):
+        self.load_global_address("t2", label)
+        self.append(f"sw {high_register}, 0(t2)")
+        self.append(f"sw {low_register}, 4(t2)")
+
+    def load_global_address(self, register, label):
+        self.append(f"lui {register}, %hi({label})")
+        self.append(f"addi {register}, {register}, %lo({label})")
+
+    def store_variable(self, name, register="t0"):
+        info = self.lookup_variable(name)
+        type_name = self.base_type(info["type"])
+
+        if info["storage"] == "argument_register":
+            register_index = info["register_index"]
+            self.append(f"mv a{register_index}, {register}")
+            return
+
+        instruction = "sb" if type_name in (BYTE, BOOL) else "sw"
+
+        if info["storage"] == "global":
+            self.load_global_address("t2", info["label"])
+            self.append(f"{instruction} {register}, 0(t2)")
+            
+        elif info["storage"] == "local":
+            self.append(f"{instruction} {register}, {info['offset']}(s0)")
+
+    def store_vector_global(self, label, register="v0"):
+        self.load_global_address("t2", label)
+        self.append(f"vstore {register}, 0(t2)")
+
+    def lookup_variable(self, name):
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return scope[name]
+
+        if name in self.globals:
+            return self.globals[name]
+
     def generate_array_address(self, node):
         array_node = node["array"]
         index_node = node["index"]
-        array_type = self.expression_type(array_node)
 
-        if array_type != "string" and not self.is_array_type(array_type):
-            self.error("Indexing a non-array expression", node)
-
-        element_size = self.element_size(array_type)
-        self.generate_expression(array_node)
-        self.push("t0")
+        info = self.lookup_variable(array_node["name"])
+        array_type = info["type"]
+        
+        element_size = self.type_size(array_type[:-2])
+        
+        self.load_global_address("t2", info["label"])
+        self.push("t2")
         self.generate_expression(index_node)
 
         if element_size != 1:
@@ -910,167 +823,24 @@ class CodeGenerator:
         self.pop("t2")
         self.append("add t2, t2, t1")
 
-    def generate_array_access(self, node):
-        array_type = self.expression_type(node["array"])
-        if array_type == "string":
-            element_type = "byte"
-        elif self.is_array_type(array_type):
-            element_type = self.base_type(array_type)
-        else:
-            self.error("Cannot index a non-array value", node)
-
-        self.generate_array_address(node)
-        if element_type == "long":
-            self.append("lw t0, 0(t2)")
-            self.append("lw t1, 4(t2)")
-        elif element_type in ("byte", "bool"):
-            self.append("lb t0, 0(t2)")
-        else:
-            self.append("lw t0, 0(t2)")
-
-    def generate_array_creation(self, node):
-        element_type = node["element_type"]
-        size_node = node["size"]
-        element_size = self.type_size(element_type)
-
-        self.generate_expression(size_node)
-        self.load_immediate("t1", element_size)
-        self.append("mul t1, t0, t1")
-        self.append("mv t0, s1")
-        self.append("add s1, s1, t1")
-
-
-    def generate_function_call(self, node):
-        function_name = node["name"]
-        args = node.get("args", [])
-
-        if function_name not in self.functions:
-            self.error(f"Unknown function '{function_name}'", node)
-
-        function = self.functions[function_name]
-
-        if len(args) != len(function.get("params", [])):
-            self.error(
-                f"Function '{function_name}' expects "
-                f"{len(function.get('params', []))} arguments, "
-                f"got {len(args)}",
-                node,
-            )
-
-        arg_types = [
-            self.expression_type(arg)
-            for arg in args
-        ]
-
-        layout = self.calculate_argument_layout(arg_types)
-
-        for register_index in range(8):
-            self.push(f"a{register_index}")
-
-        for index in range(len(args) - 1, -1, -1):
-            arg = args[index]
-            item = layout[index]
-            base = self.base_type(item["type"])
-            slot_size = item["slot_size"]
-
-            self.generate_expression(arg)
-
-            self.append(f"addi sp, sp, -{slot_size}")
-
-            if base == "long":
-                self.append("sw t0, 0(sp)")
-                self.append("sw t1, 4(sp)")
-
-            elif base in ("byte", "bool") and not self.is_pointer_type(item["type"]):
-                self.append("sb t0, 0(sp)")
-
-            elif base in ("int", "string") or self.is_array_type(item["type"]):
-                self.append("sw t0, 0(sp)")
-
-        register_bytes = 0
-
-        for item in layout:
-            if item["location"] != "register":
-                break
-
-            base = self.base_type(item["type"])
-            register_index = item["register_index"]
-            offset = register_bytes
-
-            if base == "long":
-                self.append(f"lw a{register_index}, {offset}(sp)")
-                self.append(f"lw a{register_index + 1}, {offset + 4}(sp)")
-
-            elif base in ("byte", "bool") and not self.is_pointer_type(item["type"]):
-                self.append(f"lb a{register_index}, {offset}(sp)")
-
-            elif base in ("int", "string") or self.is_array_type(item["type"]):
-                self.append(f"lw a{register_index}, {offset}(sp)")
-
-            register_bytes += item["slot_size"]
-
-        if register_bytes:
-            self.append(f"addi sp, sp, {register_bytes}")
-
-        self.append(f"jal ra, fn_{function_name}")
-
-        stack_bytes = sum(
-            item["slot_size"]
-            for item in layout
-            if item["location"] == "stack"
-        )
-
-        if stack_bytes:
-            self.append(f"addi sp, sp, {stack_bytes}")
-
-        return_type = function["return_type"]
-
-        if self.base_type(return_type) == "long":
-            self.append("mv t0, a0")
-            self.append("mv t1, a1")
-
-        elif return_type != "void":
-            self.append("mv t0, a0")
-
-        for register_index in range(7, -1, -1):
-            self.pop(f"a{register_index}")
-
     def expression_type(self, node):
         node_type = node.get("type")
 
-        if node_type == "int":
-            return "int"
+        if node_type in (INT, LONG, BYTE, BOOL, STRING):
+            return node_type
 
-        if node_type == "long":
-            return "long"
+        if node_type == VARIABLE:
+            return self.lookup_variable(node["name"])["type"]
 
-        if node_type == "byte":
-            return "byte"
-
-        if node_type == "bool":
-            return "bool"
-
-        if node_type == "string":
-            return "string"
-
-        if node_type == "variable":
-            return self.lookup_variable(node["name"], node)["type"]
-
-        if node_type == "index":
+        if node_type == INDEX:
             array_type = self.expression_type(node["array"])
 
-            if array_type == "string":
-                return "byte"
+            return array_type[:-2]
 
-            if self.is_array_type(array_type):
-                return self.base_type(array_type)
-
-            self.error("Cannot index a non-array value", node)
-
-        if node_type == "array_creation":
+        if node_type == ARRAY_CREATION:
             return node["element_type"] + "[]"
 
-        if node_type == "input":
+        if node_type == INPUT:
             return "byte"
 
         if node_type == "function_call":
@@ -1102,31 +872,177 @@ class CodeGenerator:
 
             return "int"
 
-    def get_code_addresses(self):
+    def type_size(self, type_name):
+        if str(type_name).endswith("[]"):
+            return 4
+
+        sizes = {"byte": 1, "bool": 1, "int": 4, "long": 8, "int128": 16}
+
+        return sizes[type_name]
+
+    def push(self, register):
+        self.append("addi sp, sp, -4")
+        self.append(f"sw {register}, 0(sp)")
+        self.stack_depth += 4
+
+    def push_vector(self, register):
+        self.append(f"addi sp, sp, {-4*self.vl}")
+        self.append(f"vstore {register}, 0(sp)")
+        self.stack_depth += 4*self.vl
+
+    def pop(self, register):
+        self.append(f"lw {register}, 0(sp)")
+        self.append("addi sp, sp, 4")
+        self.stack_depth -= 4
+
+    def pop_vector(self, register):
+        self.append(f"vload {register}, 0(sp)")
+        self.append(f"addi sp, sp, {4*self.vl}")
+        self.stack_depth -= 4*self.vl
+
+    def load_immediate(self, register, value):
+        value &= 0xFFFFFFFF
+
+        if value >= 0x80000000:
+            value -= 0x100000000
+
+        if -2048 <= value <= 2047:
+            self.append(f"addi {register}, zero, {value}")
+            return
+
+        upper = (value + 0x800) >> 12
+        lower = value - (upper << 12)
+
+        upper &= 0xFFFFF
+        if upper >= 0x80000:
+            upper -= 0x100000
+
+        self.append(f"lui {register}, {upper}")
+
+        if lower != 0:
+            self.append(f"addi {register}, {register}, {lower}")
+
+    def label_with_prefix(self, prefix="L"):
+        label = f".{prefix}_{self.label_counter}"
+        self.label_counter += 1
+        return label
+
+    def load_long_immediate(self, high_register, low_register, value):
+        high, low = self.split_long(value)
+
+        self.load_immediate(high_register, high)
+        self.load_immediate(low_register, low)
+
+    def split_long(self, value):
+        value &= 0xFFFFFFFFFFFFFFFF
+
+        high = (value >> 32) & 0xFFFFFFFF
+        low = value & 0xFFFFFFFF
+
+        if high >= 0x80000000:
+            high -= 0x100000000
+
+        if low >= 0x80000000:
+            low -= 0x100000000
+
+        return high, low
+
+    def load_variable(self, name, node=None):
+        info = self.lookup_variable(name)
+        var_type = self.base_type(info["type"])
+
+        if info["storage"] == "argument_register":
+            register_index = info["register_index"]
+
+            if var_type == "long":
+                self.append(f"mv t0, a{register_index}")
+                self.append(f"mv t1, a{register_index + 1}")
+            else:
+                self.append(f"mv t0, a{register_index}")
+
+            return
+        
+        if info["storage"] == "local":
+            offset = info["offset"]
+
+            if var_type == LONG:
+                self.append(f"lw t0, {offset}(s0)")
+                self.append(f"lw t1, {offset + 4}(s0)")
+            elif var_type == "int128":
+                self.append(f"vload v0, {offset}(s0)")
+            else:
+                instruction = "lb" if var_type in (BYTE, BOOL) else "lw"
+                self.append(f"{instruction} t0, {offset}(s0)")
+
+            return
+
+        instruction = "lb"
+        if var_type in (INT, LONG):
+            instruction = "lw"
+
+        if info["storage"] == "global":
+            self.load_global_address("t2", info["label"])
+            if var_type == LONG:
+                self.append("lw t0, 0(t2)")
+                self.append("lw t1, 4(t2)")
+            elif var_type == "int128":
+                self.append("vload v0, 0(t2)")
+            else:
+                self.append(f"{instruction} t0, 0(t2)")
+
+    def generate_array_access(self, node):
+        array_type = self.expression_type(node["array"])
+        element_type = array_type[:-2]
+
+        self.generate_array_address(node)
+        if element_type == LONG:
+            self.append("lw t0, 0(t2)")
+            self.append("lw t1, 4(t2)")
+        elif element_type in (BYTE, BOOL):
+            self.append("lb t0, 0(t2)")
+        else:
+            self.append("lw t0, 0(t2)")
+
+    def base_type(self, type_name):
+        if type_name.endswith("[]"):
+            return type_name[:-2]
+        return type_name
+
+    @staticmethod
+    def get_code_addresses(code:str):
         addresses = {}
         address = 0
+        in_text = False
 
-        for line in self.code:
+        for line in code.splitlines():
             text = line.strip()
 
+            if text == ".text":
+                in_text = True
+                continue
+
+            if not in_text or not text:
+                continue
+
             if text.endswith(":"):
-                label = text[:-1]
-                addresses[label] = address
-            else:
-                address += 4
+                addresses[text[:-1]] = address+4
+                continue
+            address += 4
 
         return addresses
 
-    def resolve_code_addresses(self):
-        addresses = self.get_code_addresses()
+    @staticmethod
+    def resolve_code_addresses(code: str):
+        addresses = CodeGenerator.get_code_addresses(code)
 
         result = []
         address = 0
 
-        for line in self.code:
+        for line in code.splitlines():
             text = line.strip()
 
-            if text.endswith(":"):
+            if text.startswith(".") or text.endswith(":"):
+                result.append(line)
                 continue
 
             parts = text.split()
@@ -1134,74 +1050,81 @@ class CodeGenerator:
 
             if instruction == "j":
                 label = parts[1]
-                parts[1] = str(addresses[label] - address-4)
-
+                parts[1] = str(addresses[label] - address)
+            
             elif instruction == "jal":
                 label = parts[2]
-                parts[2] = str(addresses[label] - address-4)
+                parts[2] = str(addresses[label] - address)
 
-            elif instruction in ("beq", "bne", "blt", "bge", "bltu"):
+            elif instruction in ("beq", "bne", "blt", "bge", "bltu", "bgeu"):
                 label = parts[3]
-                parts[3] = str(addresses[label] - address-4)
+                parts[3] = str(addresses[label] - address)
 
             result.append(" ".join(parts))
             address += 4
 
-        return result
+        return "\n".join(result)
 
-    def get_data_addresses(self):
+
+    @staticmethod
+    def get_data_addresses(code: str):
         addresses = {}
         address = 0
 
-        for line in self.data:
-            label, directive = line.split(":", 1)
+        for line in code.splitlines():
+            text = line.strip()
+
+            if text == ".text":
+                break
+
+            if ":" not in text:
+                continue
+
+            label, directive = text.split(":", 1)
             directive = directive.strip()
 
+            addresses[label] = address
+
             if directive.startswith(".byte"):
-                alignment = 1
-                size = len(directive[5:].split(","))
+                size = len(directive[5:].strip().split(","))
 
             elif directive.startswith(".word"):
-                alignment = 4
-                size = 4
+                size = 4 * len(directive[5:].strip().split(","))
 
             elif directive.startswith(".long"):
-                alignment = 8
-                size = 8
+                size = 8 * len(directive[5:].strip().split(","))
 
-            address = self.align_address(address, alignment)
-            addresses[label] = address
             address += size
 
         return addresses
 
-    def split_address(self, address):
-        upper = (address + 0x800) >> 12
-        lower = address - (upper << 12)
+    @staticmethod
+    def split_address(value):
+        upper = (value + 0x800) >> 12
+        lower = value - (upper << 12)
 
         return upper, lower
 
-    def align_address(self, address, alignment):
-        return (address + alignment - 1) & ~(alignment - 1)
+    @staticmethod
+    def resolve_data_references(code: str):
+        addresses = CodeGenerator.get_data_addresses(code)
 
-    def resolve_data_references(self, code):
-        addresses = self.get_data_addresses()
         result = []
 
-        for line in code:
+        for line in code.splitlines():
             parts = line.split()
 
             for i, part in enumerate(parts):
-                if part.startswith("%hi(") and part.endswith(")"):
+                if part.startswith("%hi("):
                     label = part[4:-1]
-                    upper, _ = self.split_address(addresses[label])
+                    upper, _ = CodeGenerator.split_address(addresses[label])
                     parts[i] = str(upper)
 
-                elif part.startswith("%lo(") and part.endswith(")"):
+                elif part.startswith("%lo("):
                     label = part[4:-1]
-                    _, lower = self.split_address(addresses[label])
+                    _, lower = CodeGenerator.split_address(addresses[label])
                     parts[i] = str(lower)
 
             result.append(" ".join(parts))
 
-        return result
+        return "\n".join(result)

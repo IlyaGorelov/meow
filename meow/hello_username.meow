@@ -1,5 +1,17 @@
-meow("What's your name?: ");
-string s = hearline();
+string s1 = "What's your name?: ";
 
-meow("Hello, ");
-meow(s);
+writeline(s1);
+
+#writeline("Hello, ");
+#writeline(s);
+
+void writeline(string s){
+    byte cur = '_';
+    int i = 0;
+
+    while(cur!=0){
+        cur = s[i];
+        i=i+1;
+        meow(cur);
+    }
+}

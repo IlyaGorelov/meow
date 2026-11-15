@@ -1,10 +1,8 @@
 string s = "Hello, World!";
 
 int i = 0;
-byte cur = s[i];
 
-while (cur!=0){
-    meow(cur);
+while (i<13){
+    meow(s[i]);
     i = i+1;
-    cur=s[i];
 }

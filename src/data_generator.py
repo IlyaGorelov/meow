@@ -26,7 +26,7 @@ class DataGenerator:
         self.data = bytearray()
         self.labels = {}
 
-        for line_number, line in enumerate(code.splitlines(), 1):
+        for line_number, line in enumerate(code.splitlines()):
             line = line.strip()
 
             if line == ".data":
@@ -49,6 +49,3 @@ class DataGenerator:
                 self.add_value(directive, value)
 
         return bytes(self.data)
-
-    def get_label_address(self, label, base_address=0):
-        return base_address + self.labels[label]

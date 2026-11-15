@@ -1,3 +1,7 @@
-int a = 4;
+int i = -1;
 
-meow(a);
+while (i<0){
+    meow('a');
+    meow('\n');
+    i=i+1;
+}
