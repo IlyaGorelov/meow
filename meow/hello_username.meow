@@ -1,17 +1,37 @@
-string s1 = "What's your name?: ";
+string s1 = "What's your name?:0";
 
 writeline(s1);
 
-#writeline("Hello, ");
-#writeline(s);
+string name = readline();
+
+string s2 = "\nHello, 0";
+
+writeline(s2);
+writeline(name);
 
 void writeline(string s){
+    int i = 0;
+    byte cur = s[i];
+
+    while(cur!='0'){
+        meow(cur);
+        i=i+1;
+        cur = s[i];
+    }
+}
+
+byte[] readline(){
     byte cur = '_';
+    string name = "___________________";
     int i = 0;
 
-    while(cur!=0){
-        cur = s[i];
+    while(cur!='0'){
+        cur = hear();
+
+        name[i] = cur;
+
         i=i+1;
-        meow(cur);
     }
+
+    return name;
 }

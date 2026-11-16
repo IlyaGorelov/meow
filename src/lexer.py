@@ -62,7 +62,6 @@ class Lexer:
                 self.pos_in_line += 1
                 continue
 
-            print(self.pos_in_line, self.pos)
 
             raise SyntaxError(
                 f"Unknown character {char!r} at line {self.line}:{self.pos_in_line}"
@@ -121,7 +120,6 @@ class Lexer:
         self.pos += 1
         self.pos_in_line+=1
         self.add_token(CHAR_LITERAL, char)
-        print(self.tokens[-1])
 
     def read_number(self):
         start = self.pos

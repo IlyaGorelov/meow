@@ -1,10 +1,7 @@
 from parser_node_types import *
 
-# TODO
-# allow local arrays
 class CodeGeneratorError(Exception):
     pass
-
 
 class CodeGenerator:
     def __init__(self, ast):
@@ -21,6 +18,8 @@ class CodeGenerator:
 
         self.current_function = None
         self.current_function_end = None
+        
+        self.array_counter = 0
 
         self.label_counter = 0
 
@@ -66,7 +65,7 @@ class CodeGenerator:
         raise CodeGeneratorError(message)
 
     def append(self, instruction):
-        self.code.append(f"     {instruction}")
+        self.code.append(f"\t{instruction}")
 
     def append_label(self, label):
         self.code.append(f"{label}:")
@@ -153,9 +152,14 @@ class CodeGenerator:
             if value == None:
                 self.error("Decalaration without a value", node)
 
+            if type_name == LONG and self.expression_type(value) != LONG :
+                self.append("addi t1, zero, 0")
             self.generate_expression(value)
 
             if type_name == LONG:
+                if self.expression_type(value) != LONG:
+                    self.append("mv t1, t0")
+                    self.append("addi t0, zero, 0")
                 self.store_long_global(label)
             elif type_name == "int128":
                 self.code.pop(-1)
@@ -164,6 +168,22 @@ class CodeGenerator:
             else:
                 self.store_variable(name, "t0")
 
+            return
+        
+        if type_name.endswith("[]"):
+            label = (
+                f"local_{self.current_function}_"
+                f"{name}_{self.array_counter}"
+            )
+            self.array_counter += 1
+
+            self.scopes[-1][name] = {
+                "type": type_name,
+                "label": label,
+                "storage": "static_array"
+            }
+
+            self.declare_array(node, label)
             return
 
         offset = node["_slot_offset"]
@@ -193,25 +213,28 @@ class CodeGenerator:
 
         self.append(f"{instruction} {register}, {offset}(s0)")
 
-    def declare_array(self, node):
+    def declare_array(self, node, label=None):
         element_type = node["var_type"][:-2]
         value = node["value"]
         name = node["name"]
 
-        label = f"global_{name}:"
+        if label is None:
+            label = f"global_{name}"
+            
+        data_label = f"{label}_data"
 
         directives = {
             INT: ".word",
             LONG: ".long",
-            BYTE: ".byte",
-            BOOL: ".byte",
+            BYTE: ".byte"
         }
 
         directive = directives.get(element_type)
 
+        self.data.append(f"{label}: .word 0")
         if value["type"] == ARRAY_CREATION_WITH_ELEMENTS:
             elements = [str(e["value"]) for e in value["elements"]] + ['0']
-        else:
+        elif value["type"] == ARRAY_CREATION:
             size_node = value["size"]
 
             if size_node["type"] != INT:
@@ -220,8 +243,17 @@ class CodeGenerator:
             size = size_node["value"]
 
             elements = ["0"] * (size+1) # data + null-terminator 
+        elif value["type"] == FUNCTION_CALL:
+            self.generate_expression(value)
+            self.load_global_address("t1", label)
+            self.append("sw t0, 0(t1)")
+            
 
-        self.data.append(f"{label} {directive} {', '.join(elements)}")
+        if value["type"] != FUNCTION_CALL:
+            self.data.append(f"{data_label}: {directive} {', '.join(elements)}")
+            self.load_global_address("t0", data_label)
+            self.load_global_address("t1", label)
+            self.append("sw t0, 0(t1)")
 
     def generate_assignment(self, node):
         target = node["target"]
@@ -304,7 +336,7 @@ class CodeGenerator:
         start_label = self.label_with_prefix("while_start")
         end_label = self.label_with_prefix("while_end")
 
-        self.append(f"{start_label}:")
+        self.append_label(f"{start_label}")
         self.generate_expression(node["condition"])
         self.append(f"beq t0, zero, {end_label}")
 
@@ -316,7 +348,7 @@ class CodeGenerator:
         self.loop_stack.pop()
 
         self.append(f"j {start_label}")
-        self.append(f"{end_label}:")
+        self.append_label(f"{end_label}")
 
         return
 
@@ -727,7 +759,7 @@ class CodeGenerator:
         if not type_name.endswith("[]"):
             return self.type_size(type_name)
         
-        self.error("Local arrays are not supported yet:(",node)
+        return 0
 
     def collect_local_declarations(self, body):
         declarations = []
@@ -774,6 +806,17 @@ class CodeGenerator:
 
     def store_variable(self, name, register="t0"):
         info = self.lookup_variable(name)
+        
+        if info["type"].endswith("[]"):
+            if info["storage"] == "argument_register":
+                index = info["register_index"]
+                self.append(f"mv a{index}, {register}")
+            else:
+                self.load_global_address("t2", info["label"])
+                self.append(f"sw {register}, 0(t2)")
+
+            return
+        
         type_name = self.base_type(info["type"])
 
         if info["storage"] == "argument_register":
@@ -795,24 +838,31 @@ class CodeGenerator:
         self.append(f"vstore {register}, 0(t2)")
 
     def lookup_variable(self, name):
+        found = None
         for scope in reversed(self.scopes):
             if name in scope:
-                return scope[name]
+                found= scope[name]
 
         if name in self.globals:
-            return self.globals[name]
+            found =  self.globals[name]
+            
+        if not found:
+            self.error(f"{name} doesnt exist")
+        
+        return found
 
     def generate_array_address(self, node):
         array_node = node["array"]
         index_node = node["index"]
 
-        info = self.lookup_variable(array_node["name"])
-        array_type = info["type"]
-        
+        array_type = self.expression_type(array_node)
         element_size = self.type_size(array_type[:-2])
         
-        self.load_global_address("t2", info["label"])
+        self.generate_expression(array_node)
+        self.append("mv t2, t0")
+        
         self.push("t2")
+
         self.generate_expression(index_node)
 
         if element_size != 1:
@@ -821,6 +871,7 @@ class CodeGenerator:
 
         self.append("mv t1, t0")
         self.pop("t2")
+
         self.append("add t2, t2, t1")
 
     def expression_type(self, node):
@@ -839,6 +890,9 @@ class CodeGenerator:
 
         if node_type == ARRAY_CREATION:
             return node["element_type"] + "[]"
+        
+        if node_type == ARRAY_CREATION_WITH_ELEMENTS:
+            return node["elements"][0]["type"] + "[]"
 
         if node_type == INPUT:
             return "byte"
@@ -949,6 +1003,16 @@ class CodeGenerator:
 
     def load_variable(self, name, node=None):
         info = self.lookup_variable(name)
+        
+        if info["type"].endswith("[]"):
+            if info["storage"] == "argument_register":
+                register_index = info["register_index"]
+                self.append(f"mv t0, a{register_index}")
+            else:
+                self.load_global_address("t2", info["label"])
+                self.append("lw t0, 0(t2)")
+            return
+        
         var_type = self.base_type(info["type"])
 
         if info["storage"] == "argument_register":
@@ -1009,7 +1073,7 @@ class CodeGenerator:
         return type_name
 
     @staticmethod
-    def get_code_addresses(code:str):
+    def get_code_addresses(code: str):
         addresses = {}
         address = 0
         in_text = False
@@ -1025,8 +1089,9 @@ class CodeGenerator:
                 continue
 
             if text.endswith(":"):
-                addresses[text[:-1]] = address+4
+                addresses[text[:-1]] = address
                 continue
+
             address += 4
 
         return addresses
@@ -1034,14 +1099,19 @@ class CodeGenerator:
     @staticmethod
     def resolve_code_addresses(code: str):
         addresses = CodeGenerator.get_code_addresses(code)
-
+        in_text = False
         result = []
         address = 0
 
         for line in code.splitlines():
             text = line.strip()
-
-            if text.startswith(".") or text.endswith(":"):
+            
+            if text == ".text":
+                result.append(line)
+                in_text = True
+                continue
+            
+            if text.startswith(".") or text.endswith(":") or not in_text:
                 result.append(line)
                 continue
 
@@ -1050,15 +1120,15 @@ class CodeGenerator:
 
             if instruction == "j":
                 label = parts[1]
-                parts[1] = str(addresses[label] - address)
+                parts[1] = str(addresses[label] - address-4)
             
             elif instruction == "jal":
                 label = parts[2]
-                parts[2] = str(addresses[label] - address)
+                parts[2] = str(addresses[label] - address-4)
 
             elif instruction in ("beq", "bne", "blt", "bge", "bltu", "bgeu"):
                 label = parts[3]
-                parts[3] = str(addresses[label] - address)
+                parts[3] = str(addresses[label] - address-4)
 
             result.append(" ".join(parts))
             address += 4

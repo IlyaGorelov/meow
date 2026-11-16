@@ -167,10 +167,10 @@ class ControlUnit:
                 ))
 
         if decoded["reg_write"]:
-            t = REG_WRITE_MUX(decoded["reg_write_mux"])
+            reg_mux = REG_WRITE_MUX(decoded["reg_write_mux"])
 
             signals.append((
-                lambda: self.data_path.reg_write(t.name.lower()),
+                lambda: self.data_path.reg_write(reg_mux.name.lower()),
                 6
             ))
 

@@ -515,8 +515,8 @@ class Parser:
 
         if self.is_current_token_in(IDENTIFIER) and self.next()["type"] == PUNCTUATION["("]:
             self.expect(IDENTIFIER, "function name")
-            self.pos+=1
             name = self.current()["value"]
+            self.pos+=1
             return self.parse_function_after_name(declared_type, name)
 
         self.pos = start        

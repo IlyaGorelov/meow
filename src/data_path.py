@@ -208,7 +208,11 @@ class DataPath:
 
     def data_write(self, mem_write_sel, lane = 0):
         self.reg2 = self.regs[self.rs2]
-        self.vreg2 = self.vector_regs[self.rs2]
+        
+        try:
+            self.vreg2 = self.vector_regs[self.rs2]
+        except:
+            ...
 
         if mem_write_sel == "write_b":
             value = (self.regs[self.rs2] & 0xFF).to_bytes(1, "big")

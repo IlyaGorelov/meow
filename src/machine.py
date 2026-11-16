@@ -46,7 +46,7 @@ def main(code_file, data_file, input_file):
         data,
         input_tokens=input_token,
         data_memory_size=400,
-        limit=2000,
+        limit=10000,
     )
 
     print("".join(output))
