@@ -18,7 +18,7 @@ KEYWORDS = {
     "continue": "CONTINUE",
     "break": "BREAK",
     "return": "RETURN",
-    "setLength": "SET_LENGTH"
+    "setLength": "SET_LENGTH",
 }
 
 OPERATORS = {
@@ -49,12 +49,12 @@ PUNCTUATION = {
     "]": "RBRACKET",
     ",": "COMMA",
     ";": "SEMICOLON",
-    ".": "DOT"
+    ".": "DOT",
 }
 
 EOF = "EOF"
 COMMENT = "COMMENT"
-STRING_LITERAL="STRING_LITERAL"
-CHAR_LITERAL ="CHAR_LITERAL"
+STRING_LITERAL = "STRING_LITERAL"
+CHAR_LITERAL = "CHAR_LITERAL"
 NUMBER_LITERAL = "NUMBER_LITERAL"
 IDENTIFIER = "IDENTIFIER"

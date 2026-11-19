@@ -1,0 +1,20 @@
+int[] input = {'A','B','C','D'};
+
+int128.setLength(4);
+
+int128 a = input[0];
+int128 b = {0x20,0x20,0x20,0x20};
+
+int128 c = a + b;
+
+int[] output = {0,0,0,0};
+
+output[0] = c;
+
+int i = 0;
+
+while (i<4){
+    int cur = output[i];
+    meow(cur);
+    i=i+1;
+}

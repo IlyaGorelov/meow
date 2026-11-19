@@ -1,11 +1,6 @@
 class DataGenerator:
-    DIRECTIVES = {
-        ".byte": 1,
-        ".word": 4,
-        ".long": 8
-    }
-
     def __init__(self):
+        self.DIRECTIVES = {".byte": 1, ".word": 4, ".long": 8}
         self.data = bytearray()
         self.labels = {}
 
@@ -18,9 +13,7 @@ class DataGenerator:
 
         number &= (1 << (size * 8)) - 1
 
-        self.data.extend(
-            number.to_bytes(size, byteorder="big")
-        )
+        self.data.extend(number.to_bytes(size, byteorder="big"))
 
     def generate(self, code):
         self.data = bytearray()
@@ -49,3 +42,16 @@ class DataGenerator:
                 self.add_value(directive, value)
 
         return bytes(self.data)
+
+    def to_hex(self, binary_data):
+        result = []
+
+        for i in range(0, len(binary_data), 4):
+            chunk = binary_data[i : i + 4]
+
+            address = i
+            hex_value = chunk.hex().upper()
+
+            result.append(f"{address:08X} - {hex_value}")
+
+        return "\n".join(result)

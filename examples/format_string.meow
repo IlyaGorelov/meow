@@ -1,0 +1,135 @@
+string input = "Number: %-5d\n-10\n";
+
+byte[] format = new byte[32];
+
+int i = 0;
+
+# reading format part of the string
+while (input[i] != '\n') {
+    format[i] = input[i];
+
+    i = i + 1;
+}
+
+format[i] = 0;
+
+i = i + 1;
+
+# reading numbers and converting them
+int[] numbers = new int[16];
+int number_count = 0;
+
+while (input[i] != 0) {
+    int value = 0;
+    int sign = 1;
+
+    if (input[i] == '-') {
+        sign = -1;
+        i = i + 1;
+    } else {
+        if (input[i] == '+') {
+            i = i + 1;
+        }
+    }
+
+    while (input[i] >= '0' && input[i] <= '9') {
+        value = value * 10 + input[i] - '0';
+        i = i + 1;
+    }
+
+    numbers[number_count] = value * sign;
+    number_count = number_count + 1;
+
+    if (input[i] == '\n') {
+        i = i + 1;
+    }
+}
+
+# formatting string
+int number_index = 0;
+i = 0;
+
+while (format[i] != 0) {
+    if (format[i] != '%') {
+        meow(format[i]);
+        i = i + 1;
+    } else {
+        i = i + 1;
+
+        int left = 0;
+        int width = 0;
+
+        if (format[i] == '-') {
+            left = 1;
+            i = i + 1;
+        }
+
+        while (format[i] >= '0' && format[i] <= '9') {
+            width = width * 10 + format[i] - '0';
+            i = i + 1;
+        }
+
+        i = i + 1;
+
+        value = numbers[number_index];
+        number_index = number_index + 1;
+
+        byte[] digits = new byte[11];
+        int count = 0;
+        int negative = 0;
+
+        if (value < 0) {
+            negative = 1;
+            value = -value;
+        }
+
+        if (value == 0) {
+            digits[count] = '0';
+            count = count + 1;
+        }
+
+        while (value > 0) {
+            digits[count] = value % 10 + '0';
+            count = count + 1;
+            value = value / 10;
+        }
+
+        if (negative == 1) {
+            digits[count] = '-';
+            count = count + 1;
+        }
+
+        int padding = width - count;
+
+        if (padding < 0) {
+            padding = 0;
+        }
+
+        if (left == 0) {
+            while (padding > 0) {
+                meow(' ');
+                padding = padding - 1;
+            }
+        }
+
+        int j = count - 1;
+
+        while (j >= 0) {
+            meow(digits[j]);
+            j = j - 1;
+        }
+
+        if (left == 1) {
+            padding = width - count;
+
+            if (padding < 0) {
+                padding = 0;
+            }
+
+            while (padding > 0) {
+                meow(' ');
+                padding = padding - 1;
+            }
+        }
+    }
+}

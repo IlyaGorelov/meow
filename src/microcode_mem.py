@@ -1,9 +1,7 @@
-from enum import IntEnum, IntFlag
-
 from enum import IntEnum
 
 
-class ALU_OP(IntEnum):
+class AluOp(IntEnum):
     NONE = 0
     ADD = 1
     SUB = 2
@@ -21,20 +19,20 @@ class ALU_OP(IntEnum):
     SLTU = 14
 
 
-class ALU_LEFT(IntEnum):
+class AluLeft(IntEnum):
     NONE = 0
     ZERO = 1
     REG1 = 2
     PC = 3
 
 
-class ALU_RIGHT(IntEnum):
+class AluRight(IntEnum):
     NONE = 0
     REG2 = 1
     IMM = 2
 
 
-class REG_WRITE_MUX(IntEnum):
+class RegWriteMux(IntEnum):
     NONE = 0
     ALU = 1
     MEM_W = 2
@@ -43,33 +41,33 @@ class REG_WRITE_MUX(IntEnum):
     IN = 5
 
 
-class MEM_WRITE_MUX(IntEnum):
+class MemWriteMux(IntEnum):
     NONE = 0
     WRITE_B = 1
     WRITE_W = 2
     WRITE_VECTOR = 3
 
 
-class AR_MUX(IntEnum):
+class ARMux(IntEnum):
     NONE = 0
     NEXT_AR = 1
     ALU = 2
 
 
-class PC_MUX(IntEnum):
+class PCMux(IntEnum):
     NONE = 0
     NEXT_PC = 1
     ALU = 2
 
 
-class MPC_MUX(IntEnum):
+class MPCMux(IntEnum):
     INCREMENT = 0
     ZERO = 1
     DISPATCH = 2
     CONDITIONAL = 3
 
 
-class VALU_OP(IntEnum):
+class ValuOp(IntEnum):
     NONE = 0
     ADD = 1
     SUB = 2
@@ -78,461 +76,445 @@ class VALU_OP(IntEnum):
     SLT = 5
 
 
-class VREG_WRITE_MUX(IntEnum):
+class VregWriteMux(IntEnum):
     NONE = 0
     VALU = 1
     MEM = 2
 
 
-class COND(IntEnum):
+class Cond(IntEnum):
     NONE = 0
     ZERO = 1
     NOT_ZERO = 2
 
 
-def encode(
-    alu_op=0,
-    alu_left=0,
-    alu_right=0,
-    reg_write_mux=0,
-    mem_write_mux=0,
-    ar_mux=0,
-    latch_ar=0,
-    pc_mux=0,
-    latch_pc=0,
-    read_input=0,
-    reg_write=0,
-    latch_out=0,
-    data_write=0,
-    latch_mpc=0,
-    mpc_mux=0,
-    valu_op=0,
-    vreg_write_mux=0,
-    vreg_write=0,
-    latch_vl=0,
-    vector_lane=0,
-    halt=0,
-    cond=0
-):
-    fields = [
-        (alu_op,          0,  4),
-        (alu_left,        4,  2),
-        (alu_right,       6,  2),
-        (reg_write_mux,   8,  3),
-        (mem_write_mux,  11,  2),
-        (ar_mux,         13,  2),
-        (latch_ar,       15,  1),
-        (pc_mux,         16,  2),
-        (latch_pc,       18,  1),
-        (read_input,     19,  1),
-        (reg_write,      20,  1),
-        (latch_out,      21,  1),
-        (data_write,     22,  1),
-        (latch_mpc,      23,  1),
-        (mpc_mux,        24,  2),
-        (valu_op,        26,  3),
-        (vreg_write_mux, 29,  2),
-        (vreg_write,     31,  1),
-        (latch_vl,       32,  1),
-        (vector_lane,    33,  3),
-        (halt,    36,  1),
-        (cond,    37,  2)
-    ]
+class Microcode:
+    def __init__(self):
+        self.microcode = []
+        self.descriptions = []
+        self.addresses = {}
 
-    result = 0
+        self.add_fetch()
+        self.add_immediate_instructions()
+        self.add_register_instructions()
+        self.add_jump_instructions()
+        self.add_halt()
+        self.add_branch_instructions()
+        self.add_memory_instructions()
+        self.add_io_instructions()
+        self.add_vector_instructions()
+        self.add_vector_load_instructions()
+        self.add_vector_store_instructions()
 
-    for value, shift, width in fields:
-        value = int(value)
-
-        if not 0 <= value < (1 << width):
-            raise ValueError(
-                f"Value {value} does not fit in {width} bits"
-            )
-
-        result |= value << shift
-
-    return result
-
-
-def decode(microinstruction):
-    return {
-        "alu_op":         (microinstruction >> 0) & 0xF,
-        "alu_left":       (microinstruction >> 4) & 0x3,
-        "alu_right":      (microinstruction >> 6) & 0x3,
-        "reg_write_mux":  (microinstruction >> 8) & 0x7,
-        "mem_write_mux":  (microinstruction >> 11) & 0x3,
-        "ar_mux":         (microinstruction >> 13) & 0x3,
-        "latch_ar":       (microinstruction >> 15) & 0x1,
-        "pc_mux":         (microinstruction >> 16) & 0x3,
-        "latch_pc":       (microinstruction >> 18) & 0x1,
-        "read_input":     (microinstruction >> 19) & 0x1,
-        "reg_write":      (microinstruction >> 20) & 0x1,
-        "latch_out":      (microinstruction >> 21) & 0x1,
-        "data_write":     (microinstruction >> 22) & 0x1,
-        "latch_mpc":      (microinstruction >> 23) & 0x1,
-        "mpc_mux":        (microinstruction >> 24) & 0x3,
-        "valu_op":        (microinstruction >> 26) & 0x7,
-        "vreg_write_mux": (microinstruction >> 29) & 0x3,
-        "vreg_write":     (microinstruction >> 31) & 0x1,
-        "latch_vl":       (microinstruction >> 32) & 0x1,
-        "vector_lane":    (microinstruction >> 33) & 0x7,
-        "halt":    (microinstruction >> 36) & 0x1,
-        "cond":    (microinstruction >> 37) & 0x3
-    }
-
-
-def setup_micro_memory():
-    microcode = []
-    descriptions = []
-    addresses = {}
-
-    def add_microinstruction(
-        description,
-        alu_op=ALU_OP.NONE,
-        alu_left=ALU_LEFT.NONE,
-        alu_right=ALU_RIGHT.NONE,
-        reg_write_mux=REG_WRITE_MUX.NONE,
-        mem_write_mux=MEM_WRITE_MUX.NONE,
-        ar_mux=AR_MUX.NONE,
+    @staticmethod
+    def encode(
+        alu_op=0,
+        alu_left=0,
+        alu_right=0,
+        reg_write_mux=0,
+        mem_write_mux=0,
+        ar_mux=0,
         latch_ar=0,
-        pc_mux=PC_MUX.NONE,
+        pc_mux=0,
         latch_pc=0,
-        read_input=0,
         reg_write=0,
-        latch_out=0,
+        port_write=0,
         data_write=0,
         latch_mpc=0,
-        mpc_mux=MPC_MUX.INCREMENT,
-        valu_op=VALU_OP.NONE,
-        vreg_write_mux=VREG_WRITE_MUX.NONE,
+        mpc_mux=0,
+        valu_op=0,
+        vreg_write_mux=0,
         vreg_write=0,
         latch_vl=0,
         vector_lane=0,
         halt=0,
-        cond=0
+        cond=0,
     ):
-        index = len(microcode)
+        fields = [
+            (alu_op, 0, 4),
+            (alu_left, 4, 2),
+            (alu_right, 6, 2),
+            (reg_write_mux, 8, 3),
+            (mem_write_mux, 11, 2),
+            (ar_mux, 13, 2),
+            (latch_ar, 15, 1),
+            (pc_mux, 16, 2),
+            (latch_pc, 18, 1),
+            (reg_write, 19, 1),
+            (port_write, 20, 1),
+            (data_write, 21, 1),
+            (latch_mpc, 22, 1),
+            (mpc_mux, 23, 2),
+            (valu_op, 25, 3),
+            (vreg_write_mux, 28, 2),
+            (vreg_write, 30, 1),
+            (latch_vl, 31, 1),
+            (vector_lane, 32, 3),
+            (halt, 35, 1),
+            (cond, 36, 2),
+        ]
 
-        microcode.append(encode(
-            alu_op=alu_op,
-            alu_left=alu_left,
-            alu_right=alu_right,
-            reg_write_mux=reg_write_mux,
-            mem_write_mux=mem_write_mux,
-            ar_mux=ar_mux,
-            latch_ar=latch_ar,
-            pc_mux=pc_mux,
-            latch_pc=latch_pc,
-            read_input=read_input,
-            reg_write=reg_write,
-            latch_out=latch_out,
-            data_write=data_write,
-            latch_mpc=latch_mpc,
-            mpc_mux=mpc_mux,
-            valu_op=valu_op,
-            vreg_write_mux=vreg_write_mux,
-            vreg_write=vreg_write,
-            latch_vl=latch_vl,
-            vector_lane=vector_lane,
-            halt=halt,
-            cond=cond
-        ))
+        result = 0
 
-        descriptions.append(description)
+        for value, shift, width in fields:
+            value = int(value)
+
+            if not 0 <= value < (1 << width):
+                msg = f"Value {value} does not fit in {width} bits"
+                raise ValueError(msg)
+
+            result |= value << shift
+
+        return result
+
+    @staticmethod
+    def decode(microinstruction):
+        return {
+            "alu_op": (microinstruction >> 0) & 0xF,
+            "alu_left": (microinstruction >> 4) & 0x3,
+            "alu_right": (microinstruction >> 6) & 0x3,
+            "reg_write_mux": (microinstruction >> 8) & 0x7,
+            "mem_write_mux": (microinstruction >> 11) & 0x3,
+            "ar_mux": (microinstruction >> 13) & 0x3,
+            "latch_ar": (microinstruction >> 15) & 0x1,
+            "pc_mux": (microinstruction >> 16) & 0x3,
+            "latch_pc": (microinstruction >> 18) & 0x1,
+            "reg_write": (microinstruction >> 19) & 0x1,
+            "port_write": (microinstruction >> 20) & 0x1,
+            "data_write": (microinstruction >> 21) & 0x1,
+            "latch_mpc": (microinstruction >> 22) & 0x1,
+            "mpc_mux": (microinstruction >> 23) & 0x3,
+            "valu_op": (microinstruction >> 25) & 0x7,
+            "vreg_write_mux": (microinstruction >> 28) & 0x3,
+            "vreg_write": (microinstruction >> 30) & 0x1,
+            "latch_vl": (microinstruction >> 31) & 0x1,
+            "vector_lane": (microinstruction >> 32) & 0x7,
+            "halt": (microinstruction >> 35) & 0x1,
+            "cond": (microinstruction >> 36) & 0x3,
+        }
+
+    def add_microinstruction(
+        self,
+        description,
+        alu_op=AluOp.NONE,
+        alu_left=AluLeft.NONE,
+        alu_right=AluRight.NONE,
+        reg_write_mux=RegWriteMux.NONE,
+        mem_write_mux=MemWriteMux.NONE,
+        ar_mux=ARMux.NONE,
+        latch_ar=0,
+        pc_mux=PCMux.NONE,
+        latch_pc=0,
+        reg_write=0,
+        port_write=0,
+        data_write=0,
+        latch_mpc=1,
+        mpc_mux=MPCMux.INCREMENT,
+        valu_op=ValuOp.NONE,
+        vreg_write_mux=VregWriteMux.NONE,
+        vreg_write=0,
+        latch_vl=0,
+        vector_lane=0,
+        halt=0,
+        cond=0,
+    ):
+        index = len(self.microcode)
+
+        self.microcode.append(
+            self.encode(
+                alu_op=alu_op,
+                alu_left=alu_left,
+                alu_right=alu_right,
+                reg_write_mux=reg_write_mux,
+                mem_write_mux=mem_write_mux,
+                ar_mux=ar_mux,
+                latch_ar=latch_ar,
+                pc_mux=pc_mux,
+                latch_pc=latch_pc,
+                reg_write=reg_write,
+                port_write=port_write,
+                data_write=data_write,
+                latch_mpc=latch_mpc,
+                mpc_mux=mpc_mux,
+                valu_op=valu_op,
+                vreg_write_mux=vreg_write_mux,
+                vreg_write=vreg_write,
+                latch_vl=latch_vl,
+                vector_lane=vector_lane,
+                halt=halt,
+                cond=cond,
+            )
+        )
+
+        self.descriptions.append(description)
 
         return index
 
-    addresses["FETCH"] = add_microinstruction(
-        "FETCH: Dispatch, PC+=1",
-        mpc_mux=MPC_MUX.DISPATCH,
-        latch_mpc=1,
-        pc_mux=PC_MUX.NEXT_PC,
-        latch_pc=1
-    )
-
-    addresses["ADDI"] = add_microinstruction(
-        "ADDI, goto FETCH",
-        alu_op=ALU_OP.ADD,
-        alu_left=ALU_LEFT.REG1,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.ALU,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    addresses["SLTI"] = add_microinstruction(
-        "SLTI, goto FETCH",
-        alu_op=ALU_OP.SLT,
-        alu_left=ALU_LEFT.REG1,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.ALU,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    addresses["SLTIU"] = add_microinstruction(
-        "SLTIU, goto FETCH",
-        alu_op=ALU_OP.SLTU,
-        alu_left=ALU_LEFT.REG1,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.ALU,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    addresses["XORI"] = add_microinstruction(
-        "XORI, goto FETCH",
-        alu_op=ALU_OP.XOR,
-        alu_left=ALU_LEFT.REG1,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.ALU,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    addresses["LUI"] = add_microinstruction(
-        "LUI, goto FETCH",
-        alu_op=ALU_OP.ADD,
-        alu_left=ALU_LEFT.ZERO,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.ALU,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    reg_instructions = [
-        ("ADD", ALU_OP.ADD),
-        ("SUB", ALU_OP.SUB),
-        ("SLT", ALU_OP.SLT),
-        ("SLTU", ALU_OP.SLTU),
-        ("AND", ALU_OP.AND),
-        ("OR", ALU_OP.OR),
-        ("XOR", ALU_OP.XOR),
-        ("SLL", ALU_OP.SLL),
-        ("SRL", ALU_OP.SRL),
-        ("SRA", ALU_OP.SRA),
-        ("MUL", ALU_OP.MUL),
-        ("MULH", ALU_OP.MULH),
-        ("DIV", ALU_OP.DIV),
-        ("REM", ALU_OP.REM),
-    ]
-
-    for name, operation in reg_instructions:
-        addresses[name] = add_microinstruction(
-            f"{name}, goto FETCH",
-            alu_op=operation,
-            alu_left=ALU_LEFT.REG1,
-            alu_right=ALU_RIGHT.REG2,
-            reg_write_mux=REG_WRITE_MUX.ALU,
-            reg_write=1,
-            mpc_mux=MPC_MUX.ZERO,
-            latch_mpc=1
+    def add_fetch(self):
+        self.addresses["FETCH"] = self.add_microinstruction(
+            "FETCH: Dispatch, PC+=1",
+            mpc_mux=MPCMux.DISPATCH,
+            latch_mpc=1,
+            pc_mux=PCMux.NEXT_PC,
+            latch_pc=1,
         )
 
-    addresses["JAL"] = add_microinstruction(
-        "JAL, goto FETCH",
-        alu_op=ALU_OP.ADD,
-        alu_left=ALU_LEFT.PC,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.NEXT_PC,
-        reg_write=1,
-        pc_mux=PC_MUX.ALU,
-        latch_pc=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
+    def add_immediate_instructions(self):
+        instructions = [
+            ("ADDI", AluOp.ADD, AluLeft.REG1),
+            ("SLTI", AluOp.SLT, AluLeft.REG1),
+            ("SLTIU", AluOp.SLTU, AluLeft.REG1),
+            ("XORI", AluOp.XOR, AluLeft.REG1),
+            ("LUI", AluOp.ADD, AluLeft.ZERO),
+        ]
 
-    addresses["JALR"] = add_microinstruction(
-        "JALR, goto FETCH",
-        alu_op=ALU_OP.ADD,
-        alu_left=ALU_LEFT.REG1,
-        alu_right=ALU_RIGHT.IMM,
-        reg_write_mux=REG_WRITE_MUX.NEXT_PC,
-        reg_write=1,
-        pc_mux=PC_MUX.ALU,
-        latch_pc=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
+        for name, operation, left in instructions:
+            self.addresses[name] = self.add_microinstruction(
+                f"{name}, goto FETCH",
+                alu_op=operation,
+                alu_left=left,
+                alu_right=AluRight.IMM,
+                reg_write_mux=RegWriteMux.ALU,
+                reg_write=1,
+                mpc_mux=MPCMux.ZERO,
+                latch_mpc=1,
+            )
 
-    addresses["HALT"] = add_microinstruction(
-        "HALT",
-        halt=1
-    )
+    def add_register_instructions(self):
+        instructions = [
+            ("ADD", AluOp.ADD),
+            ("SUB", AluOp.SUB),
+            ("SLT", AluOp.SLT),
+            ("SLTU", AluOp.SLTU),
+            ("AND", AluOp.AND),
+            ("OR", AluOp.OR),
+            ("XOR", AluOp.XOR),
+            ("SLL", AluOp.SLL),
+            ("SRL", AluOp.SRL),
+            ("SRA", AluOp.SRA),
+            ("MUL", AluOp.MUL),
+            ("MULH", AluOp.MULH),
+            ("DIV", AluOp.DIV),
+            ("REM", AluOp.REM),
+        ]
 
-    def add_branch(name, operation, condition):
-        branch_addr = add_microinstruction(
+        for name, operation in instructions:
+            self.addresses[name] = self.add_microinstruction(
+                f"{name}, goto FETCH",
+                alu_op=operation,
+                alu_left=AluLeft.REG1,
+                alu_right=AluRight.REG2,
+                reg_write_mux=RegWriteMux.ALU,
+                reg_write=1,
+                mpc_mux=MPCMux.ZERO,
+                latch_mpc=1,
+            )
+
+    def add_jump_instructions(self):
+        instructions = [
+            ("JAL", AluLeft.PC),
+            ("JALR", AluLeft.REG1),
+        ]
+
+        for name, left in instructions:
+            self.addresses[name] = self.add_microinstruction(
+                f"{name}, goto FETCH",
+                alu_op=AluOp.ADD,
+                alu_left=left,
+                alu_right=AluRight.IMM,
+                reg_write_mux=RegWriteMux.NEXT_PC,
+                reg_write=1,
+                pc_mux=PCMux.ALU,
+                latch_pc=1,
+                mpc_mux=MPCMux.ZERO,
+                latch_mpc=1,
+            )
+
+    def add_halt(self):
+        self.addresses["HALT"] = self.add_microinstruction("HALT", halt=1)
+
+    def add_branch_instructions(self):
+        instructions = [
+            ("BEQ", AluOp.SUB, Cond.ZERO),
+            ("BNE", AluOp.SUB, Cond.NOT_ZERO),
+            ("BLT", AluOp.SLT, Cond.NOT_ZERO),
+            ("BGE", AluOp.SLT, Cond.ZERO),
+            ("BLTU", AluOp.SLTU, Cond.NOT_ZERO),
+            ("BGEU", AluOp.SLTU, Cond.ZERO),
+        ]
+
+        for name, operation, condition in instructions:
+            self.addresses[name] = self.add_branch(name, operation, condition)
+
+    def add_branch(self, name, operation, condition):
+        address = self.add_microinstruction(
             f"{name}: compare registers",
             alu_op=operation,
-            alu_left=ALU_LEFT.REG1,
-            alu_right=ALU_RIGHT.REG2,
-            mpc_mux=MPC_MUX.CONDITIONAL,
+            alu_left=AluLeft.REG1,
+            alu_right=AluRight.REG2,
+            mpc_mux=MPCMux.CONDITIONAL,
             latch_mpc=1,
-            cond=condition
+            cond=condition,
         )
 
-        add_microinstruction(
+        self.add_microinstruction(
             f"{name}: branch not taken, goto FETCH",
-            mpc_mux=MPC_MUX.ZERO,
-            latch_mpc=1
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
         )
 
-        add_microinstruction(
+        self.add_microinstruction(
             f"{name}: branch taken, PC += immediate, goto FETCH",
-            alu_op=ALU_OP.ADD,
-            alu_left=ALU_LEFT.PC,
-            alu_right=ALU_RIGHT.IMM,
-            pc_mux=PC_MUX.ALU,
+            alu_op=AluOp.ADD,
+            alu_left=AluLeft.PC,
+            alu_right=AluRight.IMM,
+            pc_mux=PCMux.ALU,
             latch_pc=1,
-            mpc_mux=MPC_MUX.ZERO,
-            latch_mpc=1
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
         )
 
-        addresses[name] = branch_addr
-        return branch_addr
+        return address
 
-    add_branch("BEQ",  ALU_OP.SUB,  COND.ZERO)
-    add_branch("BNE",  ALU_OP.SUB,  COND.NOT_ZERO)
-    add_branch("BLT",  ALU_OP.SLT,  COND.NOT_ZERO)
-    add_branch("BGE",  ALU_OP.SLT,  COND.ZERO)
-    add_branch("BLTU", ALU_OP.SLTU, COND.NOT_ZERO)
-    add_branch("BGEU", ALU_OP.SLTU, COND.ZERO)
+    def add_memory_instructions(self):
+        instructions = [
+            ("SW", MemWriteMux.WRITE_W, RegWriteMux.NONE),
+            ("SB", MemWriteMux.WRITE_B, RegWriteMux.NONE),
+            ("LW", MemWriteMux.NONE, RegWriteMux.MEM_W),
+            ("LB", MemWriteMux.NONE, RegWriteMux.MEM_B),
+        ]
 
-    def add_memory_instruction(name, mem_operation, write_operation):
-        address = add_microinstruction(
+        for name, mem_operation, write_operation in instructions:
+            self.addresses[name] = self.add_memory_instruction(name, mem_operation, write_operation)
+
+    def add_memory_instruction(self, name, mem_operation, write_operation):
+        address = self.add_microinstruction(
             f"{name}: AR = rs1 + imm",
-            alu_op=ALU_OP.ADD,
-            alu_left=ALU_LEFT.REG1,
-            alu_right=ALU_RIGHT.IMM,
-            ar_mux=AR_MUX.ALU,
-            latch_ar=1
+            alu_op=AluOp.ADD,
+            alu_left=AluLeft.REG1,
+            alu_right=AluRight.IMM,
+            ar_mux=ARMux.ALU,
+            latch_ar=1,
         )
 
-        add_microinstruction(
+        self.add_microinstruction(
             f"{name}: MEMORY OPERATION, goto FETCH",
             reg_write_mux=write_operation,
-            reg_write=1 if write_operation != REG_WRITE_MUX.NONE else 0,
+            reg_write=int(write_operation != RegWriteMux.NONE),
             mem_write_mux=mem_operation,
-            data_write=1 if mem_operation != MEM_WRITE_MUX.NONE else 0,
-            alu_left=ALU_LEFT.ZERO,
-            alu_right=ALU_RIGHT.REG2,
-            mpc_mux=MPC_MUX.ZERO,
-            latch_mpc=1
+            data_write=int(mem_operation != MemWriteMux.NONE),
+            alu_left=AluLeft.ZERO,
+            alu_right=AluRight.REG2,
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
         )
 
-        addresses[name] = address
+        return address
 
-    add_memory_instruction("SW", MEM_WRITE_MUX.WRITE_W, REG_WRITE_MUX.NONE)
-    add_memory_instruction("SB", MEM_WRITE_MUX.WRITE_B, REG_WRITE_MUX.NONE)
-    add_memory_instruction("LW", MEM_WRITE_MUX.NONE, REG_WRITE_MUX.MEM_W)
-    add_memory_instruction("LB", MEM_WRITE_MUX.NONE, REG_WRITE_MUX.MEM_B)
-
-    addresses["IN"] = add_microinstruction(
-        "IN, goto FETCH",
-        read_input=1,
-        reg_write_mux=REG_WRITE_MUX.IN,
-        reg_write=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    addresses["OUT"] = add_microinstruction(
-        "OUT, goto FETCH",
-        alu_left=ALU_LEFT.REG1,
-        latch_out=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
-
-    vreg_instructions = [
-        ("VADD", VALU_OP.ADD),
-        ("VSUB", VALU_OP.SUB),
-        ("VSLT", VALU_OP.SLT),
-        ("VMUL", VALU_OP.MUL),
-        ("VDIV", VALU_OP.DIV),
-    ]
-
-    for name, operation in vreg_instructions:
-        addresses[name] = add_microinstruction(
-            f"{name}, goto FETCH",
-            valu_op=operation,
-            vreg_write_mux=VREG_WRITE_MUX.VALU,
-            vreg_write=1,
-            mpc_mux=MPC_MUX.ZERO,
-            latch_mpc=1
+    def add_io_instructions(self):
+        self.addresses["IN"] = self.add_microinstruction(
+            "IN, goto FETCH",
+            reg_write_mux=RegWriteMux.IN,
+            reg_write=1,
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
         )
 
-    addresses["VSETVLI"] = add_microinstruction(
-        "VSETVLI, goto FETCH",
-        alu_op=ALU_OP.ADD,
-        alu_left=ALU_LEFT.ZERO,
-        alu_right=ALU_RIGHT.IMM,
-        latch_vl=1,
-        mpc_mux=MPC_MUX.ZERO,
-        latch_mpc=1
-    )
+        self.addresses["OUT"] = self.add_microinstruction(
+            "OUT, goto FETCH",
+            alu_left=AluLeft.REG1,
+            port_write=1,
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
+        )
 
-    def add_vload(name, lane_count):
-        address = add_microinstruction(
+    def add_vector_instructions(self):
+        instructions = [
+            ("VADD", ValuOp.ADD),
+            ("VSUB", ValuOp.SUB),
+            ("VSLT", ValuOp.SLT),
+            ("VMUL", ValuOp.MUL),
+            ("VDIV", ValuOp.DIV),
+        ]
+
+        for name, operation in instructions:
+            self.addresses[name] = self.add_microinstruction(
+                f"{name}, goto FETCH",
+                valu_op=operation,
+                vreg_write_mux=VregWriteMux.VALU,
+                vreg_write=1,
+                mpc_mux=MPCMux.ZERO,
+                latch_mpc=1,
+            )
+
+        self.addresses["VSETVLI"] = self.add_microinstruction(
+            "VSETVLI, goto FETCH",
+            alu_op=AluOp.ADD,
+            alu_left=AluLeft.ZERO,
+            alu_right=AluRight.IMM,
+            latch_vl=1,
+            mpc_mux=MPCMux.ZERO,
+            latch_mpc=1,
+        )
+
+    def add_vector_load_instructions(self):
+        for lane_count in range(1, 5):
+            name = f"VLOAD{lane_count}"
+            self.addresses[name] = self.add_vector_load(name, lane_count)
+
+    def add_vector_load(self, name, lane_count):
+        address = self.add_microinstruction(
             f"{name}: AR = rs1 + imm",
-            alu_op=ALU_OP.ADD,
-            alu_left=ALU_LEFT.REG1,
-            alu_right=ALU_RIGHT.IMM,
-            ar_mux=AR_MUX.ALU,
-            latch_ar=1
+            alu_op=AluOp.ADD,
+            alu_left=AluLeft.REG1,
+            alu_right=AluRight.IMM,
+            ar_mux=ARMux.ALU,
+            latch_ar=1,
         )
 
         for lane in range(lane_count):
-            add_microinstruction(
+            is_last = lane == lane_count - 1
+
+            self.add_microinstruction(
                 f"{name}: load lane {lane}",
-                vreg_write_mux=VREG_WRITE_MUX.MEM,
+                vreg_write_mux=VregWriteMux.MEM,
                 vreg_write=1,
                 vector_lane=lane,
-                ar_mux=AR_MUX.NEXT_AR if lane < lane_count - 1 else AR_MUX.NONE,
-                latch_ar=1 if lane < lane_count - 1 else 0,
-                mpc_mux=MPC_MUX.ZERO if lane == lane_count - 1 else MPC_MUX.INCREMENT,
-                latch_mpc=1
+                ar_mux=ARMux.NONE if is_last else ARMux.NEXT_AR,
+                latch_ar=int(not is_last),
+                mpc_mux=MPCMux.ZERO if is_last else MPCMux.INCREMENT,
+                latch_mpc=1,
             )
 
-        addresses[name] = address
+        return address
 
-    add_vload("VLOAD1", 1)
-    add_vload("VLOAD2", 2)
-    add_vload("VLOAD3", 3)
-    add_vload("VLOAD4", 4)
+    def add_vector_store_instructions(self):
+        for lane_count in range(1, 5):
+            name = f"VSTORE{lane_count}"
+            self.addresses[name] = self.add_vector_store(name, lane_count)
 
-    def add_vstore(name, lane_count):
-        address = add_microinstruction(
+    def add_vector_store(self, name, lane_count):
+        address = self.add_microinstruction(
             f"{name}: AR = rs1 + imm",
-            alu_op=ALU_OP.ADD,
-            alu_left=ALU_LEFT.REG1,
-            alu_right=ALU_RIGHT.IMM,
-            ar_mux=AR_MUX.ALU,
-            latch_ar=1
+            alu_op=AluOp.ADD,
+            alu_left=AluLeft.REG1,
+            alu_right=AluRight.IMM,
+            ar_mux=ARMux.ALU,
+            latch_ar=1,
         )
 
         for lane in range(lane_count):
-            add_microinstruction(
+            is_last = lane == lane_count - 1
+
+            self.add_microinstruction(
                 f"{name}: store lane {lane}",
-                mem_write_mux=MEM_WRITE_MUX.WRITE_VECTOR,
+                mem_write_mux=MemWriteMux.WRITE_VECTOR,
                 data_write=1,
                 vector_lane=lane,
-                ar_mux=AR_MUX.NEXT_AR if lane < lane_count - 1 else AR_MUX.NONE,
-                latch_ar=1 if lane < lane_count - 1 else 0,
-                mpc_mux=MPC_MUX.ZERO if lane == lane_count - 1 else MPC_MUX.INCREMENT,
-                latch_mpc=1
+                ar_mux=ARMux.NONE if is_last else ARMux.NEXT_AR,
+                latch_ar=int(not is_last),
+                mpc_mux=MPCMux.ZERO if is_last else MPCMux.INCREMENT,
+                latch_mpc=1,
             )
 
-        addresses[name] = address
-
-    add_vstore("VSTORE1", 1)
-    add_vstore("VSTORE2", 2)
-    add_vstore("VSTORE3", 3)
-    add_vstore("VSTORE4", 4)
-
-    return (microcode, descriptions, addresses)
+        return address

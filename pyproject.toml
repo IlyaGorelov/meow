@@ -1,0 +1,63 @@
+[tool.poetry]
+name = "meow"
+version = "0.1.0"
+description = "Translator and Processor Model for CSA Course "
+authors = ["Ilya Gorelov <ilgorelov5@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.14"
+pyyaml = "^6.0.3"
+
+[tool.poetry.group.dev.dependencies]
+coverage = "^7.10"
+mypy = "^1.18"
+pytest = "^9.0"
+pytest-golden = ">=1.0.1"
+ruff = "^0.17"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["test"]
+enable_assertion_pass_hook = true
+addopts = "--doctest-modules"
+log_format = "%(levelname)-7s %(module)s:%(funcName)-13s %(message)s"
+log_level = "DEBUG"
+
+[tool.ruff]
+line-length = 120
+src = ["src"]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "F", "E", "W", "N", "I", "C90", "UP",
+    "ERA", "YTT", "ASYNC", "A", "COM",
+    "FA", "ICN", "INP", "T20", "PT",
+    "Q", "RET", "PTH", "PD", "TRY", "RUF",
+]
+
+ignore = [
+    "COM812",
+    "E501",
+    "T201",
+    "RUF002",
+    "RUF003",
+    "PTH123",
+    "PTH118",
+    "UP032",
+    "PTH103",
+    "PTH120",
+    "PTH100",
+]
+
+unfixable = ["ERA001"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 7

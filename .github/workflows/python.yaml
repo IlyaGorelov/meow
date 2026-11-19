@@ -1,0 +1,86 @@
+name: Python CI
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/**"
+      - "src/**"
+      - "test/**"
+      - "pyproject.toml"
+      - "poetry.lock"
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/**"
+      - "src/**"
+      - "test/**"
+      - "pyproject.toml"
+      - "poetry.lock"
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: poetry
+          cache-dependency-path: poetry.lock
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run golden tests
+        run: |
+          poetry run coverage run --source=src -m pytest
+          poetry run coverage report -m
+        env:
+          CI: true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: poetry
+          cache-dependency-path: poetry.lock
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check formatting
+        run: poetry run ruff format --check src/ test/
+
+      - name: Run Ruff
+        run: poetry run ruff check src/ test/

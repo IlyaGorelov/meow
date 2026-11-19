@@ -1,6 +1,0 @@
-byte char = 1;
-
-while (char != 0){
-    char = hear();
-    meow(char);
-}

@@ -363,12 +363,12 @@
 | 0000111 |  000   | `lw <rd>, <offset>(<rs1>)` | 2             | loads a 32-bit value from memory into rd |
 | 0000111 |  001   | `lb <rd>, <offset>(<rs1>)` | 2             | loads a 8-bit value from memory into rd  |
 
-#### IO (U-type)
+#### Input (I-type) and Output (S-type)
 
-| OPCODE  | Инструкция NOP | Кол-во тактов | Описание |
-| :-----: | -------------- | ------------- | -------- |
-| 0001001 | `in <rd>`      | 1             |          |
-| 0001010 | `out <rd>`     | 1             |          |
+| OPCODE  | Инструкция NOP      | Кол-во тактов | Описание                           |
+| :-----: | ------------------- | ------------- | ---------------------------------- |
+| 0001001 | `in <rd>, <port>`   | 1             | Get 32-bit value from port address |
+| 0001010 | `out <rs2>, <port>` | 1             |                                    |
 
 #### Vector-to-Vector (R-type)
 
@@ -392,7 +392,7 @@
 | :-----: | :----: | ------------------------------ | ------------- | -------- |
 | 0001110 |  000   | `vload <vrd>, <offset>(<rs1>)` | 1             |          |
 
-#### Set Vector Length (U-type)
+#### Set Vector Length (I-type)
 
 | OPCODE | funct3 | Инструкция           | Кол-во тактов | Описание                                                                                              |
 | :----: | :----: | -------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
@@ -510,19 +510,18 @@ TODO: распистаь какой reg1 это rs1, rs2, rd
 |     16     | LATCH AR       |     \[0;1]      |
 |   17-18    | PC MUX         |    \[00;10]     |
 |     19     | LATCH PC       |     \[0;1]      |
-|     20     | READ INPUT     |     \[0;1]      |
-|     21     | REG WRITE      |     \[0;1]      |
-|     22     | LATCH OUT      |     \[0;1]      |
-|     23     | DATA WRITE     |     \[0;1]      |
-|     24     | LATCH mPC      |     \[0;1]      |
-|   25-26    | mPC MUX        |    \[00;11]     |
-|   27-29    | VALU operation |   \[000;101]    |
-|   30-31    | VREG WRITE MUX |    \[00;10]     |
-|     32     | VREG WRITE     |     \[0;1]      |
-|     33     | Latch VL       |     \[0;1]      |
-|   34-36    | Vector Lane    |   \[000;100]    |
-|     37     | Halt           |     \[0;1]      |
-|   38-39    | Condition      |    \[00;10]     |
+|     20     | REG WRITE      |     \[0;1]      |
+|     21     | PORT WRITE     |     \[0;1]      |
+|     22     | DATA WRITE     |     \[0;1]      |
+|     23     | LATCH mPC      |     \[0;1]      |
+|   24-25    | mPC MUX        |    \[00;11]     |
+|   26-28    | VALU operation |   \[000;101]    |
+|   29-30    | VREG WRITE MUX |    \[00;10]     |
+|     31     | VREG WRITE     |     \[0;1]      |
+|     32     | Latch VL       |     \[0;1]      |
+|   33-35    | Vector Lane    |   \[000;100]    |
+|     36     | Halt           |     \[0;1]      |
+|   37-38    | Condition      |    \[00;10]     |
 
 ## Тестирование
 

@@ -1,7 +1,35 @@
-from parser_node_types import *
+from parser_node_types import (
+    ARRAY_CREATION,
+    ARRAY_CREATION_WITH_ELEMENTS,
+    ASSIGNMENT,
+    BINARY,
+    BOOL,
+    BREAK_NODE,
+    BYTE,
+    CALL_STATEMENT,
+    COMMENT_NODE,
+    CONST_DECLARATION,
+    CONTINUE_NODE,
+    FUNCTION,
+    FUNCTION_CALL,
+    IF_NODE,
+    INDEX,
+    INPUT,
+    INT,
+    LONG,
+    OUTPUT,
+    RETURN_NODE,
+    SET_VECTOR_LENGTH,
+    UNARY,
+    VAR_DECLARATION,
+    VARIABLE,
+    WHILE_NODE,
+)
+
 
 class CodeGeneratorError(Exception):
     pass
+
 
 class CodeGenerator:
     def __init__(self, ast):
@@ -18,7 +46,7 @@ class CodeGenerator:
 
         self.current_function = None
         self.current_function_end = None
-        
+
         self.array_counter = 0
 
         self.label_counter = 0
@@ -32,7 +60,7 @@ class CodeGenerator:
                 self.functions[name] = node
 
         self.append_label("_start")
-        self.append("addi sp, zero, 300")  # init sp
+        self.load_immediate("sp", 4000)
 
         for node in body:
             if node["type"] == FUNCTION:
@@ -60,7 +88,7 @@ class CodeGenerator:
         line = node.get("line") if node is not None else None
 
         if line is not None:
-            raise CodeGeneratorError(f"Line {line}: {message}")
+            raise CodeGeneratorError(f"Line {line}: {message}")  # noqa TRY003
 
         raise CodeGeneratorError(message)
 
@@ -70,7 +98,7 @@ class CodeGenerator:
     def append_label(self, label):
         self.code.append(f"{label}:")
 
-    def generate_statement(self, node):
+    def generate_statement(self, node):  # noqa C901
         node_type = node.get("type")
 
         if node_type in (VAR_DECLARATION, CONST_DECLARATION):
@@ -113,79 +141,105 @@ class CodeGenerator:
             )
 
     def generate_declaration(self, node):
-        is_const = node["type"] == CONST_DECLARATION
         name = node["name"]
         type_name = str(node["var_type"])
-        value = node.get("value")
 
         if self.current_function is None:
-            label = f"global_{name}"
+            self.generate_global_declaration(node, name, type_name)
+            return
 
-            if name in self.globals.keys():
-                self.error(f"{name} is already defined",
-                           node)
+        if type_name.endswith("[]"):
+            self.generate_local_array_declaration(node, name, type_name)
+            return
 
-            self.globals[name] = {
-                "type": type_name,
-                "label": label,
-                "storage": "global",
-                "is_const": is_const
-            }
+        self.generate_local_variable_declaration(node, name, type_name)
 
-            if type_name == LONG:
-                self.data.append(f"{label}: .long 0")
-            elif type_name in (BYTE, BOOL):
-                self.data.append(f"{label}: .byte 0")
-            elif type_name.endswith("[]"):
-                self.declare_array(node)
-                return
-            elif type_name == INT:
-                self.data.append(f"{label}: .word 0")
-            elif type_name == "int128":
-                if value["type"]== ARRAY_CREATION_WITH_ELEMENTS:
-                    elements = [str(e["value"]) for e in value["elements"]]
-                    elements_line = ', '.join(elements)
-                    self.data.append(f"{label}: .word {elements_line}")
-                    return
-                self.data.append(f"{label}: .word 0,0,0,0")
+    def generate_global_declaration(self, node, name, type_name):
+        is_const = node["type"] == CONST_DECLARATION
+        value = node.get("value")
+        label = f"global_{name}"
 
-            if value == None:
-                self.error("Decalaration without a value", node)
+        if name in self.globals:
+            self.error(f"{name} is already defined", node)
 
-            if type_name == LONG and self.expression_type(value) != LONG :
-                self.append("addi t1, zero, 0")
+        self.globals[name] = {
+            "type": type_name,
+            "label": label,
+            "storage": "global",
+            "is_const": is_const,
+        }
+
+        if type_name.endswith("[]"):
+            self.declare_array(node)
+            return
+
+        if self.declare_global_storage(label, type_name, value):
+            return
+
+        if value is None:
+            self.error("Decalaration without a value", node)
+
+        self.initialize_global_variable(name, label, type_name, value)
+
+    def declare_global_storage(self, label, type_name, value):
+        if type_name == LONG:
+            self.data.append(f"{label}: .long 0")
+
+        elif type_name in (BYTE, BOOL):
+            self.data.append(f"{label}: .byte 0")
+
+        elif type_name == INT:
+            self.data.append(f"{label}: .word 0")
+
+        elif type_name == "int128":
+            if value["type"] == ARRAY_CREATION_WITH_ELEMENTS:
+                elements = [str(e["value"]) for e in value["elements"]]
+                elements += ["0"] * (4 - len(elements))
+                self.data.append(f"{label}: .word {', '.join(elements)}")
+                return True
+
+            self.data.append(f"{label}: .word 0, 0, 0, 0")
+
+        return False
+
+    def initialize_global_variable(self, name, label, type_name, value):
+        is_long = type_name == LONG
+        is_vector = type_name == "int128"
+
+        if is_long and self.expression_type(value) != LONG:
+            self.append("addi t1, zero, 0")
+
+        if is_vector:
+            self.generate_vector_expression(value)
+        else:
             self.generate_expression(value)
 
-            if type_name == LONG:
-                if self.expression_type(value) != LONG:
-                    self.append("mv t1, t0")
-                    self.append("addi t0, zero, 0")
-                self.store_long_global(label)
-            elif type_name == "int128":
-                self.code.pop(-1)
-                self.append("vload v0, 0(t2)")
-                self.store_vector_global(label)
-            else:
-                self.store_variable(name, "t0")
+        if is_long:
+            if self.expression_type(value) != LONG:
+                self.append("mv t1, t0")
+                self.append("addi t0, zero, 0")
 
-            return
-        
-        if type_name.endswith("[]"):
-            label = (
-                f"local_{self.current_function}_"
-                f"{name}_{self.array_counter}"
-            )
-            self.array_counter += 1
+            self.store_long_global(label)
 
-            self.scopes[-1][name] = {
-                "type": type_name,
-                "label": label,
-                "storage": "static_array"
-            }
+        elif is_vector:
+            self.store_vector_global(label)
 
-            self.declare_array(node, label)
-            return
+        else:
+            self.store_variable(name, "t0")
 
+    def generate_local_array_declaration(self, node, name, type_name):
+        label = f"local_{self.current_function}_{name}_{self.array_counter}"
+        self.array_counter += 1
+
+        self.scopes[-1][name] = {
+            "type": type_name,
+            "label": label,
+            "storage": "static_array",
+        }
+
+        self.declare_array(node, label)
+
+    def generate_local_variable_declaration(self, node, name, type_name):
         offset = node["_slot_offset"]
 
         self.scopes[-1][name] = {
@@ -194,11 +248,19 @@ class CodeGenerator:
             "storage": "local",
         }
 
-        self.generate_expression(value)
+        value = node.get("value")
+
+        if type_name == "int128":
+            self.generate_vector_expression(value)
+        else:
+            self.generate_expression(value)
+
         if self.base_type(type_name) == LONG:
             self.store_long("t0", "t1", offset)
+
         elif type_name == "int128":
             self.append(f"vstore v0, {offset}(s0)")
+
         else:
             self.store_register_to_local("t0", offset, type_name)
 
@@ -220,20 +282,16 @@ class CodeGenerator:
 
         if label is None:
             label = f"global_{name}"
-            
+
         data_label = f"{label}_data"
 
-        directives = {
-            INT: ".word",
-            LONG: ".long",
-            BYTE: ".byte"
-        }
+        directives = {INT: ".word", LONG: ".long", BYTE: ".byte"}
 
         directive = directives.get(element_type)
 
         self.data.append(f"{label}: .word 0")
         if value["type"] == ARRAY_CREATION_WITH_ELEMENTS:
-            elements = [str(e["value"]) for e in value["elements"]] + ['0']
+            elements = [str(e["value"]) for e in value["elements"]] + ["0"]
         elif value["type"] == ARRAY_CREATION:
             size_node = value["size"]
 
@@ -242,12 +300,11 @@ class CodeGenerator:
 
             size = size_node["value"]
 
-            elements = ["0"] * (size+1) # data + null-terminator 
+            elements = ["0"] * (size + 1)  # data + null-terminator
         elif value["type"] == FUNCTION_CALL:
             self.generate_expression(value)
             self.load_global_address("t1", label)
             self.append("sw t0, 0(t1)")
-            
 
         if value["type"] != FUNCTION_CALL:
             self.data.append(f"{data_label}: {directive} {', '.join(elements)}")
@@ -260,51 +317,80 @@ class CodeGenerator:
         value = node["value"]
 
         if target["type"] == VARIABLE:
-            name = target["name"]
-            info = self.lookup_variable(name)
-
-            if info.get("is_const", False):
-                self.error("Can't assign to const", node)
-
-            self.generate_expression(value)
-
-            if info["type"] == LONG:
-                if info["storage"] == "global":
-                    self.store_long_global(info["label"])
-                elif info["storage"] == "argument_register":
-                    index = info["register_index"]
-                    self.append(f"mv a{index}, t0")
-                    self.append(f"mv a{index + 1}, t1")
-                else:
-                    self.append(f"sw t0, {info['offset']}(s0)")
-                    self.append(f"sw t1, {info['offset'] + 4}(s0)")
-            elif info["type"] == "int128":
-                if info["storage"] == "global":
-                    self.store_vector_global(info["label"])
-                else:
-                    self.append(f"vstore v0, {info['offset']}(s0)")
-            else:
-                self.store_variable(name, "t0")
-
+            self.generate_variable_assignment(target, value, node)
         elif target["type"] == INDEX:
-            self.generate_array_address(target)
-            self.push("t2")
+            self.generate_index_assignment(target, value)
+
+    def generate_variable_assignment(self, target, value, node):
+        name = target["name"]
+        info = self.lookup_variable(name)
+
+        if info.get("is_const", False):
+            self.error("Can't assign to const", node)
+
+        if info["type"] == "int128":
+            self.generate_vector_expression(value)
+        else:
             self.generate_expression(value)
-            self.pop("t2")
 
-            element_type = self.expression_type(target)
+        if info["type"] == LONG:
+            self.store_long_variable(info)
+        elif info["type"] == "int128":
+            self.store_vector_variable(info)
+        else:
+            self.store_variable(name, "t0")
 
-            if element_type == LONG:
-                self.append("sw t0, 0(t2)")
-                self.append("sw t1, 4(t2)")
-            elif element_type in (BYTE, BOOL):
-                self.append("sb t0, 0(t2)")
-            else:
-                self.append("sw t0, 0(t2)")
+    def store_long_variable(self, info):
+        if info["storage"] == "global":
+            self.store_long_global(info["label"])
+
+        elif info["storage"] == "argument_register":
+            index = info["register_index"]
+            self.append(f"mv a{index}, t0")
+            self.append(f"mv a{index + 1}, t1")
+
+        else:
+            offset = info["offset"]
+            self.append(f"sw t0, {offset}(s0)")
+            self.append(f"sw t1, {offset + 4}(s0)")
+
+    def store_vector_variable(self, info):
+        if info["storage"] == "global":
+            self.store_vector_global(info["label"])
+        else:
+            self.append(f"vstore v0, {info['offset']}(s0)")
+
+    def generate_index_assignment(self, target, value):
+        if self.expression_type(value) == "int128":
+            self.generate_vector_expression(value)
+            self.generate_array_address(target)
+            self.append("vstore v0, 0(t2)")
+            return
+
+        self.generate_array_address(target)
+        self.push("t2")
+
+        self.generate_expression(value)
+
+        self.pop("t2")
+
+        element_type = self.expression_type(target)
+        self.store_array_element(element_type)
+
+    def store_array_element(self, element_type):
+        if element_type == LONG:
+            self.append("sw t0, 0(t2)")
+            self.append("sw t1, 4(t2)")
+
+        elif element_type in (BYTE, BOOL):
+            self.append("sb t0, 0(t2)")
+
+        else:
+            self.append("sw t0, 0(t2)")
 
     def generate_output(self, node):
         self.generate_expression(node["value"])
-        self.append("out t0")
+        self.append("out t0, 1")
 
     def generate_continue(self, node):
         start_label, _ = self.loop_stack[-1]
@@ -376,13 +462,13 @@ class CodeGenerator:
         value = node["value"]
 
         if value["type"] != INT:
-            self.error(f"setLength expects number not {value["type"]}", node)
+            self.error(f"setLength expects number not {value['type']}", node)
 
-        self.append(f"vsetvl s1, {value["value"]}")
+        self.append(f"vsetvli s1, {value['value']}")
         self.vl = value["value"]
         return
 
-    def generate_expression(self, node):
+    def generate_expression(self, node):  # noqa: C901
         node_type = node.get("type")
 
         if node_type in (INT, BYTE):
@@ -412,22 +498,34 @@ class CodeGenerator:
             self.generate_function_call(node)
 
         elif node_type == INPUT:
-            self.append("in t0")
-            self.append("addi t1, zero, 0xFF")
-            self.append("and t0, t0, t1")
+            self.append("in t0, 0")
         return
 
-    def generate_binary(self, node):
+    def generate_vector_expression(self, node):
+        node_type = node["type"]
+
+        if node_type == INDEX:
+            self.generate_array_address(node)
+            self.append("vload v0, 0(t2)")
+            return
+
+        if node_type == VARIABLE:
+            self.load_variable(node["name"], node)
+            return
+
+        if node_type == BINARY:
+            self.generate_vector_binary(node)
+            return
+
+    def generate_binary(self, node):  # noqa: C901
         operator = node["operator"]
 
         left_type = self.expression_type(node["left"])
         right_type = self.expression_type(node["right"])
 
-        is_long = (self.base_type(left_type) == LONG
-                   or self.base_type(right_type) == LONG)
+        is_long = self.base_type(left_type) == LONG or self.base_type(right_type) == LONG
 
-        is_vector = (self.base_type(left_type) == "int128"
-                     or self.base_type(right_type) == "int128")
+        is_vector = self.base_type(left_type) == "int128" or self.base_type(right_type) == "int128"
 
         if is_long:
             self.generate_long_binary(node)
@@ -502,7 +600,7 @@ class CodeGenerator:
             self.append("xori t0, t0, 1")
         return
 
-    def generate_long_binary(self, node):
+    def generate_long_binary(self, node):  # noqa: C901
         operator = node["operator"]
 
         self.generate_expression(node["left"])
@@ -599,24 +697,19 @@ class CodeGenerator:
     def generate_vector_binary(self, node):
         operator = node["operator"]
 
-        self.generate_expression(node["left"])
+        self.generate_vector_expression(node["right"])
         self.push_vector("v0")
 
-        self.generate_expression(node["right"])
+        self.generate_vector_expression(node["left"])
         self.pop_vector("v1")
 
-        operations = {
-            "+": "vadd",
-            "-": "vsub",
-            "*": "vmul",
-            "/": "vdiv"
-        }
+        operations = {"+": "vadd", "-": "vsub", "*": "vmul", "/": "vdiv"}
 
         if operator in operations:
             self.append(f"{operations[operator]} v0, v0, v1")
             return
 
-        elif operator == "<":
+        if operator == "<":
             self.append("vslt v0, v1, v0")
 
         elif operator == ">":
@@ -642,52 +735,47 @@ class CodeGenerator:
 
         function = self.functions[function_name]
 
-        arg_types = [
-            self.expression_type(arg)
-            for arg in args
-        ]
-
         reg_index = 0
 
-        for i in range(len(args)):
-            arg = args[i]
-            arg_type = arg_types[i]
-
+        for arg in args:
+            arg_type = self.expression_type(arg)
             self.generate_expression(arg)
 
-            if arg_type == LONG:
-                self.push(f"a{reg_index}")
-                self.append(f"mv a{reg_index}, t0")
-                reg_index += 1
-                self.push(f"a{reg_index}")
-                self.append(f"mv a{reg_index}, t1")
-                reg_index += 1
-
-            elif arg_type in (BYTE, BOOL, INT):
-                self.push(f"a{reg_index}")
-                self.append(f"mv a{reg_index}, t0")
-                reg_index += 1
-                
-            elif arg_type.endswith("[]"):
-                self.push(f"a{reg_index}")
-                self.append(f"mv a{reg_index}, t0")
-                reg_index += 1
+            reg_index = self.pass_function_argument(arg_type, reg_index)
 
         self.append(f"jal ra, fn_{function_name}")
 
-        return_type = function["return_type"]
+        self.load_function_return(function["return_type"])
 
+        for i in range(reg_index - 1, -1, -1):
+            self.pop(f"a{i}")
+
+        return
+
+    def pass_function_argument(self, arg_type, reg_index):
+        if arg_type == LONG:
+            self.push(f"a{reg_index}")
+            self.append(f"mv a{reg_index}, t0")
+            reg_index += 1
+
+            self.push(f"a{reg_index}")
+            self.append(f"mv a{reg_index}, t1")
+            reg_index += 1
+
+        elif arg_type in (BYTE, BOOL, INT) or arg_type.endswith("[]"):
+            self.push(f"a{reg_index}")
+            self.append(f"mv a{reg_index}, t0")
+            reg_index += 1
+
+        return reg_index
+
+    def load_function_return(self, return_type):
         if self.base_type(return_type) == LONG:
             self.append("mv t0, a0")
             self.append("mv t1, a1")
 
         elif return_type != "void":
             self.append("mv t0, a0")
-
-        for i in range(reg_index-1, -1, -1):
-            self.pop(f"a{i}")
-
-        return
 
     def generate_function(self, node):
         name = node["name"]
@@ -705,11 +793,6 @@ class CodeGenerator:
         self.append(f"sw ra, {frame_size - 4}(sp)")
         self.append(f"sw s0, {frame_size - 8}(sp)")
         self.append("mv s0, sp")
-
-        param_types = [
-            parameter["param_type"]
-            for parameter in params
-        ]
 
         reg_index = 0
         for parameter in params:
@@ -746,22 +829,17 @@ class CodeGenerator:
             node["_slot_offset"] = offset
             offset += self.local_storage_size(node)
 
-        frame_size = offset + 8 # ra and s0
+        return offset + 8  # ra and s0
 
-        return frame_size
-    
     def local_storage_size(self, node):
         type_name = node["var_type"]
 
-        if type_name == "int128":
-            self.error("Local vectors are not supported yet:(",node)
-
         if not type_name.endswith("[]"):
             return self.type_size(type_name)
-        
+
         return 0
 
-    def collect_local_declarations(self, body):
+    def collect_local_declarations(self, body):  # noqa: C901
         declarations = []
 
         def visit_statement(node):
@@ -806,7 +884,7 @@ class CodeGenerator:
 
     def store_variable(self, name, register="t0"):
         info = self.lookup_variable(name)
-        
+
         if info["type"].endswith("[]"):
             if info["storage"] == "argument_register":
                 index = info["register_index"]
@@ -816,7 +894,7 @@ class CodeGenerator:
                 self.append(f"sw {register}, 0(t2)")
 
             return
-        
+
         type_name = self.base_type(info["type"])
 
         if info["storage"] == "argument_register":
@@ -829,7 +907,7 @@ class CodeGenerator:
         if info["storage"] == "global":
             self.load_global_address("t2", info["label"])
             self.append(f"{instruction} {register}, 0(t2)")
-            
+
         elif info["storage"] == "local":
             self.append(f"{instruction} {register}, {info['offset']}(s0)")
 
@@ -841,14 +919,14 @@ class CodeGenerator:
         found = None
         for scope in reversed(self.scopes):
             if name in scope:
-                found= scope[name]
+                found = scope[name]
 
         if name in self.globals:
-            found =  self.globals[name]
-            
+            found = self.globals[name]
+
         if not found:
             self.error(f"{name} doesnt exist")
-        
+
         return found
 
     def generate_array_address(self, node):
@@ -857,10 +935,10 @@ class CodeGenerator:
 
         array_type = self.expression_type(array_node)
         element_size = self.type_size(array_type[:-2])
-        
+
         self.generate_expression(array_node)
         self.append("mv t2, t0")
-        
+
         self.push("t2")
 
         self.generate_expression(index_node)
@@ -874,10 +952,10 @@ class CodeGenerator:
 
         self.append("add t2, t2, t1")
 
-    def expression_type(self, node):
+    def expression_type(self, node):  # noqa: C901
         node_type = node.get("type")
 
-        if node_type in (INT, LONG, BYTE, BOOL, STRING):
+        if node_type in (INT, LONG, BYTE, BOOL):
             return node_type
 
         if node_type == VARIABLE:
@@ -885,17 +963,16 @@ class CodeGenerator:
 
         if node_type == INDEX:
             array_type = self.expression_type(node["array"])
-
             return array_type[:-2]
 
         if node_type == ARRAY_CREATION:
             return node["element_type"] + "[]"
-        
+
         if node_type == ARRAY_CREATION_WITH_ELEMENTS:
             return node["elements"][0]["type"] + "[]"
 
         if node_type == INPUT:
-            return "byte"
+            return INT
 
         if node_type == "function_call":
             function = self.functions.get(node["name"])
@@ -908,23 +985,34 @@ class CodeGenerator:
                 node,
             )
 
-        if node_type == "unary":
+        if node_type == UNARY:
             return self.expression_type(node["operand"])
 
-        if node_type == "binary":
+        if node_type == BINARY:
             left = self.expression_type(node["left"])
             right = self.expression_type(node["right"])
 
+            if "int128" in (self.base_type(left), self.base_type(right)):
+                return "int128"
+
             if node["operator"] in (
-                "==", "!=", "<", ">", "<=", ">=",
-                "&&", "||",
+                "==",
+                "!=",
+                "<",
+                ">",
+                "<=",
+                ">=",
+                "&&",
+                "||",
             ):
-                return "bool"
+                return BOOL
 
-            if "long" in (self.base_type(left), self.base_type(right)):
-                return "long"
+            if LONG in (self.base_type(left), self.base_type(right)):
+                return LONG
 
-            return "int"
+            return INT
+
+        return None
 
     def type_size(self, type_name):
         if str(type_name).endswith("[]"):
@@ -940,9 +1028,9 @@ class CodeGenerator:
         self.stack_depth += 4
 
     def push_vector(self, register):
-        self.append(f"addi sp, sp, {-4*self.vl}")
+        self.append(f"addi sp, sp, {-4 * self.vl}")
         self.append(f"vstore {register}, 0(sp)")
-        self.stack_depth += 4*self.vl
+        self.stack_depth += 4 * self.vl
 
     def pop(self, register):
         self.append(f"lw {register}, 0(sp)")
@@ -951,8 +1039,8 @@ class CodeGenerator:
 
     def pop_vector(self, register):
         self.append(f"vload {register}, 0(sp)")
-        self.append(f"addi sp, sp, {4*self.vl}")
-        self.stack_depth -= 4*self.vl
+        self.append(f"addi sp, sp, {4 * self.vl}")
+        self.stack_depth -= 4 * self.vl
 
     def load_immediate(self, register, value):
         value &= 0xFFFFFFFF
@@ -1003,56 +1091,61 @@ class CodeGenerator:
 
     def load_variable(self, name, node=None):
         info = self.lookup_variable(name)
-        
-        if info["type"].endswith("[]"):
-            if info["storage"] == "argument_register":
-                register_index = info["register_index"]
-                self.append(f"mv t0, a{register_index}")
-            else:
-                self.load_global_address("t2", info["label"])
-                self.append("lw t0, 0(t2)")
-            return
-        
         var_type = self.base_type(info["type"])
 
+        if info["type"].endswith("[]"):
+            self.load_array_variable(info)
+        elif info["storage"] == "argument_register":
+            self.load_argument_variable(info, var_type)
+        elif info["storage"] == "local":
+            self.load_local_variable(info, var_type)
+        elif info["storage"] == "global":
+            self.load_global_variable(info, var_type)
+
+    def load_array_variable(self, info):
         if info["storage"] == "argument_register":
-            register_index = info["register_index"]
-
-            if var_type == "long":
-                self.append(f"mv t0, a{register_index}")
-                self.append(f"mv t1, a{register_index + 1}")
-            else:
-                self.append(f"mv t0, a{register_index}")
-
-            return
-        
-        if info["storage"] == "local":
-            offset = info["offset"]
-
-            if var_type == LONG:
-                self.append(f"lw t0, {offset}(s0)")
-                self.append(f"lw t1, {offset + 4}(s0)")
-            elif var_type == "int128":
-                self.append(f"vload v0, {offset}(s0)")
-            else:
-                instruction = "lb" if var_type in (BYTE, BOOL) else "lw"
-                self.append(f"{instruction} t0, {offset}(s0)")
-
-            return
-
-        instruction = "lb"
-        if var_type in (INT, LONG):
-            instruction = "lw"
-
-        if info["storage"] == "global":
+            self.append(f"mv t0, a{info['register_index']}")
+        else:
             self.load_global_address("t2", info["label"])
-            if var_type == LONG:
-                self.append("lw t0, 0(t2)")
-                self.append("lw t1, 4(t2)")
-            elif var_type == "int128":
-                self.append("vload v0, 0(t2)")
-            else:
-                self.append(f"{instruction} t0, 0(t2)")
+            self.append("lw t0, 0(t2)")
+
+    def load_argument_variable(self, info, var_type):
+        register_index = info["register_index"]
+
+        self.append(f"mv t0, a{register_index}")
+
+        if var_type == LONG:
+            self.append(f"mv t1, a{register_index + 1}")
+
+    def load_local_variable(self, info, var_type):
+        offset = info["offset"]
+
+        if var_type == LONG:
+            self.append(f"lw t0, {offset}(s0)")
+            self.append(f"lw t1, {offset + 4}(s0)")
+            return
+
+        if var_type == "int128":
+            self.append(f"vload v0, {offset}(s0)")
+            return
+
+        instruction = "lb" if var_type in (BYTE, BOOL) else "lw"
+        self.append(f"{instruction} t0, {offset}(s0)")
+
+    def load_global_variable(self, info, var_type):
+        self.load_global_address("t2", info["label"])
+
+        if var_type == LONG:
+            self.append("lw t0, 0(t2)")
+            self.append("lw t1, 4(t2)")
+            return
+
+        if var_type == "int128":
+            self.append("vload v0, 0(t2)")
+            return
+
+        instruction = "lw" if var_type in (INT, LONG) else "lb"
+        self.append(f"{instruction} t0, 0(t2)")
 
     def generate_array_access(self, node):
         array_type = self.expression_type(node["array"])
@@ -1105,12 +1198,12 @@ class CodeGenerator:
 
         for line in code.splitlines():
             text = line.strip()
-            
+
             if text == ".text":
                 result.append(line)
                 in_text = True
                 continue
-            
+
             if text.startswith(".") or text.endswith(":") or not in_text:
                 result.append(line)
                 continue
@@ -1120,21 +1213,20 @@ class CodeGenerator:
 
             if instruction == "j":
                 label = parts[1]
-                parts[1] = str(addresses[label] - address-4)
-            
+                parts[1] = str(addresses[label] - address - 4)
+
             elif instruction == "jal":
                 label = parts[2]
-                parts[2] = str(addresses[label] - address-4)
+                parts[2] = str(addresses[label] - address - 4)
 
             elif instruction in ("beq", "bne", "blt", "bge", "bltu", "bgeu"):
                 label = parts[3]
-                parts[3] = str(addresses[label] - address-4)
+                parts[3] = str(addresses[label] - address - 4)
 
             result.append(" ".join(parts))
             address += 4
 
         return "\n".join(result)
-
 
     @staticmethod
     def get_data_addresses(code: str):

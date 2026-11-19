@@ -6,8 +6,45 @@
 #               -char
 #               -extra fields
 
-from lexer_token_types import *
-from parser_node_types import *
+from lexer_token_types import (
+    CHAR_LITERAL,
+    COMMENT,
+    EOF,
+    IDENTIFIER,
+    KEYWORDS,
+    NUMBER_LITERAL,
+    OPERATORS,
+    PUNCTUATION,
+    STRING_LITERAL,
+)
+from parser_node_types import (
+    ARRAY_CREATION,
+    ARRAY_CREATION_WITH_ELEMENTS,
+    ASSIGNMENT,
+    BINARY,
+    BOOL,
+    BREAK_NODE,
+    BYTE,
+    CALL_STATEMENT,
+    COMMENT_NODE,
+    CONST_DECLARATION,
+    CONTINUE_NODE,
+    FUNCTION_CALL,
+    IF_NODE,
+    INDEX,
+    INPUT,
+    INT,
+    LONG,
+    OUTPUT,
+    PARAMETER,
+    PROGRAM,
+    RETURN_NODE,
+    SET_VECTOR_LENGTH,
+    UNARY,
+    VAR_DECLARATION,
+    VARIABLE,
+    WHILE_NODE,
+)
 
 BINARY_OPERATORS = {
     "LOGICAL_OR": ("||", 1),
@@ -43,8 +80,13 @@ ARRAY_TYPES = {
     "bool": "BOOL",
 }
 
+
 class ParserError(Exception):
-    pass
+    def __init__(self, message, line=None, char=None):
+        if line is not None and char is not None:
+            message = f"Line {line}:{char}: {message}"
+
+        super().__init__(message)
 
 
 class Parser:
@@ -65,7 +107,7 @@ class Parser:
     def error(self, message):
         line = self.current()["line"]
         char = self.current()["char"]
-        raise ParserError(f"Line {line}:{char}: {message}")
+        raise ParserError(message, line, char)
 
     def expect(self, token_type, description=None):
         if not self.is_current_token_in(token_type):
@@ -75,9 +117,11 @@ class Parser:
             char = self.current()["char"]
 
             expected = description or token_type
+            error_msg = f"expected {expected}, got {actual_type} ({actual_value!r})"
             raise ParserError(
-                f"Line {line}:{char}: expected {expected}, "
-                f"got {actual_type} ({actual_value!r})"
+                error_msg,
+                line,
+                char,
             )
 
     def node(self, node_type, **fields):
@@ -97,70 +141,56 @@ class Parser:
         return self.node(PROGRAM, body=body)
 
     def parse_token(self):
-        if self.is_current_token_in(COMMENT):
-            return self.parse_comment()
+        parsers = {
+            COMMENT: self.parse_comment,
+            KEYWORDS["continue"]: self.parse_continue,
+            KEYWORDS["break"]: self.parse_break,
+            KEYWORDS["const"]: self.parse_const_declaration,
+            KEYWORDS["while"]: self.parse_cycle,
+            KEYWORDS["if"]: self.parse_branch,
+            KEYWORDS["return"]: self.parse_return,
+            KEYWORDS["meow"]: self.parse_output,
+            KEYWORDS["void"]: self.parse_function,
+        }
 
-        if self.is_current_token_in(KEYWORDS["continue"]):
-            return self.parse_continue()
+        token_type = self.current()["type"]
 
-        if self.is_current_token_in(KEYWORDS["break"]):
-            return self.parse_break()
+        parser = parsers.get(token_type)
+        if parser is not None:
+            return parser()
 
-        if self.is_current_token_in(KEYWORDS["const"]):
-            return self.parse_const_declaration()
-
-        if self.is_current_token_in(KEYWORDS["while"]):
-            return self.parse_cycle()
-
-        if self.is_current_token_in(KEYWORDS["if"]):
-            return self.parse_branch()
-
-        if self.is_current_token_in(KEYWORDS["return"]):
-            return self.parse_return()
-
-        if self.is_current_token_in(KEYWORDS["meow"]):
-            return self.parse_output()
-        
-        if (
-            self.is_current_token_in(TYPE_TOKENS["int128"])
-            and self.next()["type"] == PUNCTUATION["."]
-        ):
-            self.pos += 1
-            self.pos += 1
+        if token_type == TYPE_TOKENS["int128"] and self.next()["type"] == PUNCTUATION["."]:
+            self.pos += 2
             return self.parse_int128_static_func()
 
-        if self.is_current_token_in(*TYPE_TOKENS.values()):
+        if token_type in TYPE_TOKENS.values():
             return self.parse_declaration_or_function()
 
-        if self.is_current_token_in(KEYWORDS["void"]):
-            return self.parse_function()
-
-        if self.is_current_token_in(IDENTIFIER):
-            if self.next()["type"] == PUNCTUATION["("]:
-                return self.parse_call_statement()
-            return self.parse_assignment()
+        if token_type == IDENTIFIER:
+            return self.parse_identifier_statement()
 
         self.error(f"unexpected token {self.current()}")
-        
+        return None
+
     def parse_comment(self):
         _, value, _, _ = self.current()
-        self.pos+=1
+        self.pos += 1
         return self.node(COMMENT_NODE, value=value)
-    
+
     def parse_continue(self):
-        self.pos+=1
+        self.pos += 1
         self.expect(PUNCTUATION[";"], "';'")
-        self.pos+=1
+        self.pos += 1
         return self.node(CONTINUE_NODE)
-    
+
     def parse_break(self):
-        self.pos+=1
+        self.pos += 1
         self.expect(PUNCTUATION[";"], "';'")
-        self.pos+=1
+        self.pos += 1
         return self.node(BREAK_NODE)
-            
+
     def parse_const_declaration(self):
-        self.pos+=1
+        self.pos += 1
         declaration = self.parse_var_declaration()
 
         return self.node(
@@ -169,17 +199,17 @@ class Parser:
             name=declaration["name"],
             value=declaration["value"],
         )
-        
+
     def parse_var_declaration(self):
         var_type = self.parse_type()
         self.expect(IDENTIFIER)
         name = self.current()["value"]
-        self.pos+=1
+        self.pos += 1
         self.expect("ASSIGN", "'='")
-        self.pos+=1
+        self.pos += 1
         value = self.parse_initializer()
-        self.expect("SEMICOLON","';'")
-        self.pos+=1
+        self.expect("SEMICOLON", "';'")
+        self.pos += 1
 
         return self.node(
             VAR_DECLARATION,
@@ -190,7 +220,7 @@ class Parser:
 
     def parse_type(self, allow_void=False):
         if allow_void and self.is_current_token_in(KEYWORDS["void"]):
-            self.pos+=1
+            self.pos += 1
             return "void"
 
         token_type = self.current()["type"]
@@ -198,82 +228,76 @@ class Parser:
         if token_type not in TYPE_TOKENS.values():
             self.error(f"expected a type, got {self.current()}")
 
-        self.pos+=1
+        self.pos += 1
 
         if self.is_current_token_in(PUNCTUATION["["]):
             if token_type not in ARRAY_TYPES.values():
                 self.error(f"arrays of {token_type} are not allowed yet")
-            self.pos+=1
-            
+            self.pos += 1
+
             self.expect(PUNCTUATION["]"], "']' in array type")
-            self.pos+=1
+            self.pos += 1
             return str(token_type).lower() + "[]"
-        
+
         if token_type == TYPE_TOKENS["string"]:
             token_type = "byte[]"
 
         return str(token_type).lower()
-    
+
     def parse_initializer(self):
         if self.is_current_token_in(KEYWORDS["new"]):
             return self.parse_array_creation()
-        
+
         if self.is_current_token_in(PUNCTUATION["{"]):
             return self.parse_array_creation_with_elements()
 
         return self.parse_expression()
-    
+
     def parse_array_creation(self):
-        self.pos+=1
+        self.pos += 1
         element_type = self.parse_array_element_type()
         self.expect("LBRACKET", "'['")
-        self.pos+=1
+        self.pos += 1
         size = self.parse_expression()
         self.expect("RBRACKET", "']'")
-        self.pos+=1
+        self.pos += 1
 
         return self.node(
             ARRAY_CREATION,
             element_type=element_type,
             size=size,
         )
-        
+
     def parse_array_creation_with_elements(self):
-            self.pos+=1
-            elements = []
-            
+        self.pos += 1
+        elements = []
+
+        elements.append(self.parse_expression())
+
+        while self.current()["type"] == PUNCTUATION[","]:
+            self.pos += 1
             elements.append(self.parse_expression())
-            
-            while self.current()["type"] == PUNCTUATION[","]:
-                self.pos+=1
-                elements.append(self.parse_expression())
-                
-            self.expect(PUNCTUATION["}"])
-            self.pos+=1
-    
-            return self.node(
-                ARRAY_CREATION_WITH_ELEMENTS,
-                elements = elements
-            )
+
+        self.expect(PUNCTUATION["}"])
+        self.pos += 1
+
+        return self.node(ARRAY_CREATION_WITH_ELEMENTS, elements=elements)
 
     def parse_array_element_type(self):
         token_type = self.current()["type"]
 
         if token_type not in ARRAY_TYPES.values():
-            self.error(
-                "array creation requires int, long, byte or bool; "
-                f"got {self.current()}"
-            )
-            
-        self.pos+=1
+            self.error(f"array creation requires int, long, byte or bool; got {self.current()}")
+
+        self.pos += 1
 
         return str(token_type).lower()
-    
+
     def parse_expression(self, min_precedence=1):
         left = self.parse_unary()
 
         while True:
-            token_type = self.current()['type']
+            token_type = self.current()["type"]
             operator_info = BINARY_OPERATORS.get(token_type)
 
             if operator_info is None:
@@ -283,7 +307,7 @@ class Parser:
             if precedence < min_precedence:
                 break
 
-            self.pos+=1
+            self.pos += 1
             right = self.parse_expression(precedence + 1)
 
             left = self.node(
@@ -294,10 +318,10 @@ class Parser:
             )
 
         return left
-    
+
     def parse_unary(self):
         if self.is_current_token_in(OPERATORS["-"]):
-            self.pos+=1
+            self.pos += 1
             return self.node(
                 UNARY,
                 operator="-",
@@ -305,15 +329,15 @@ class Parser:
             )
 
         return self.parse_postfix()
-    
+
     def parse_postfix(self):
         expression = self.parse_primary()
 
         while self.is_current_token_in(PUNCTUATION["["]):
-            self.pos+=1
+            self.pos += 1
             index = self.parse_expression()
             self.expect("RBRACKET", "']'")
-            self.pos+=1
+            self.pos += 1
 
             expression = self.node(
                 "index",
@@ -322,159 +346,191 @@ class Parser:
             )
 
         return expression
-    
+
     def parse_primary(self):
         token_type = self.current()["type"]
+
+        parsers = {
+            NUMBER_LITERAL: self.parse_number_literal,
+            STRING_LITERAL: self.parse_string_literal,
+            CHAR_LITERAL: self.parse_char_literal,
+            KEYWORDS["hear"]: self.parse_input_call,
+            "BOOL_LITERAL": self.parse_bool_literal,
+            IDENTIFIER: self.parse_identifier_primary,
+            PUNCTUATION["("]: self.parse_parenthesized_expression,
+        }
+
+        parser = parsers.get(token_type)
+
+        if parser is not None:
+            return parser()
+
+        self.error(f"unexpected token in expression: {self.current()}")
+        return None
+
+    def parse_number_literal(self):
+        value = int(self.current()["value"], 0)
+        self.pos += 1
+
+        if value > 2_147_483_647 or value < -2_147_483_648:
+            return self.node(LONG, value=value)
+
+        return self.node(INT, value=value)
+
+    def parse_string_literal(self):
+        value = self.current()["value"]
+        self.pos += 1
+
+        elements = []
+        i = 0
+
+        while i < len(value):
+            if value[i] == "\\" and i + 1 < len(value):
+                cur_char = value[i : i + 2]
+                i += 2
+            else:
+                cur_char = value[i]
+                i += 1
+
+            elements.append(self.node(BYTE, value=self.decode_char(cur_char)))
+
+        return self.node(ARRAY_CREATION_WITH_ELEMENTS, elements=elements)
+
+    def parse_char_literal(self):
+        value = self.current()["value"]
+        self.pos += 1
+        return self.node(BYTE, value=self.decode_char(value))
+
+    def parse_identifier_primary(self):
         value = self.current()["value"]
 
-        if token_type == NUMBER_LITERAL:
-            self.pos+=1
-            number = int(value, 0)
-            if number > 2_147_483_647 or number < -2_147_483_648:
-                return self.node(LONG, value=number)
-            return self.node(INT, value=number)
+        if self.next()["type"] == PUNCTUATION["("]:
+            return self.parse_function_call()
 
-        if token_type == STRING_LITERAL:
-            self.pos+=1
-            elements = []
-            i = 0
+        self.pos += 1
+        return self.node(VARIABLE, name=value)
 
-            while i < len(value):
-                if value[i] == "\\" and i + 1 < len(value):
-                    cur_char = value[i:i + 2]
-                    i += 2
-                else:
-                    cur_char = value[i]
-                    i += 1
+    def parse_parenthesized_expression(self):
+        self.pos += 1
+        expression = self.parse_expression()
+        self.expect(PUNCTUATION[")"], "')'")
+        self.pos += 1
+        return expression
 
-                elements.append(
-                    self.node(BYTE, value=self.decode_char(cur_char))
-                )
+    def parse_bool_literal(self):
+        value = self.current()["value"]
+        self.pos += 1
+        return self.node(BOOL, value=value)
 
-            return self.node(ARRAY_CREATION_WITH_ELEMENTS, elements=elements)
-
-        if token_type == CHAR_LITERAL:
-            self.pos+=1
-            return self.node(BYTE, value=self.decode_char(value))
-        
-        if token_type == KEYWORDS["hear"]:
-            return self.parse_input_call()
-
-        if token_type == "BOOL_LITERAL":
-            self.pos+=1
-            return self.node(BOOL, value=value)
-
-        if token_type == IDENTIFIER:
-            if self.next()["type"] == PUNCTUATION["("]:
-                return self.parse_function_call()
-
-            self.pos+=1
-            return self.node(VARIABLE, name=value)
-
-        if self.is_current_token_in(PUNCTUATION["("]):
-            self.pos+=1
-            expression = self.parse_expression()
-            self.expect("RPAREN", "')'")
-            self.pos+=1
-            return expression
-    
     def parse_function_call(self):
         self.expect(IDENTIFIER, "function name")
         name = self.current()["value"]
-        self.pos+=1
+        self.pos += 1
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
         args = []
 
         if not self.is_current_token_in(PUNCTUATION[")"]):
             args.append(self.parse_expression())
 
             while self.is_current_token_in(PUNCTUATION[","]):
+                self.pos += 1
                 args.append(self.parse_expression())
-                self.pos+=1
 
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
 
         return self.node(
             FUNCTION_CALL,
             name=name,
             args=args,
         )
-        
+
     def parse_cycle(self):
         self.expect(KEYWORDS["while"])
-        self.pos+=1
+        self.pos += 1
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
         condition = self.parse_expression()
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
         body = self.parse_block()
 
         return self.node(WHILE_NODE, condition=condition, body=body)
-    
+
     def parse_block(self):
         self.expect("LBRACE", "'{'")
-        self.pos+=1
+        self.pos += 1
         body = []
 
         while not self.is_current_token_in("RBRACE", "EOF"):
             body.append(self.parse_body_term())
 
         self.expect("RBRACE", "'}'")
-        self.pos+=1
+        self.pos += 1
         return body
-    
+
     def parse_body_term(self):
         if self.is_current_token_in(COMMENT):
             return self.parse_comment()
-        if self.is_current_token_in(KEYWORDS["const"]):
-            return self.parse_const_declaration()
-        if self.is_current_token_in(KEYWORDS["while"]):
-            return self.parse_cycle()
-        if self.is_current_token_in(KEYWORDS["if"]):
-            return self.parse_branch()
-        if self.is_current_token_in(KEYWORDS["continue"]):
-            return self.parse_continue()
-        if self.is_current_token_in(KEYWORDS["break"]):
-            return self.parse_break()
-        if self.is_current_token_in(KEYWORDS["return"]):
-            return self.parse_return()
-        if self.is_current_token_in(KEYWORDS["meow"]):
-            return self.parse_output()
-        
-        if (
-            self.is_current_token_in(TYPE_TOKENS["int128"])
-            and self.next()["type"] == PUNCTUATION["."]
+
+        if self.is_current_token_in(
+            KEYWORDS["const"],
+            KEYWORDS["while"],
+            KEYWORDS["if"],
+            KEYWORDS["continue"],
+            KEYWORDS["break"],
+            KEYWORDS["return"],
+            KEYWORDS["meow"],
         ):
-            self.pos += 1
-            self.pos += 1
+            return self.parse_keyword_term()
+
+        if self.is_current_token_in(TYPE_TOKENS["int128"]) and self.next()["type"] == PUNCTUATION["."]:
+            self.pos += 2
             return self.parse_int128_static_func()
-        
+
         if self.is_current_token_in(*TYPE_TOKENS.values()):
             return self.parse_var_declaration()
+
         if self.is_current_token_in(IDENTIFIER):
             if self.next()["type"] == "LPAREN":
                 return self.parse_call_statement()
             return self.parse_assignment()
 
-        self.error(
-            f"unexpected token in function body: {self.current()}"
-        )
-        
+        self.error(f"unexpected token in function body: {self.current()}")
+        return None
+
+    def parse_keyword_term(self):
+        keyword_parsers = {
+            KEYWORDS["const"]: self.parse_const_declaration,
+            KEYWORDS["while"]: self.parse_cycle,
+            KEYWORDS["if"]: self.parse_branch,
+            KEYWORDS["continue"]: self.parse_continue,
+            KEYWORDS["break"]: self.parse_break,
+            KEYWORDS["return"]: self.parse_return,
+            KEYWORDS["meow"]: self.parse_output,
+        }
+
+        token_type = self.current()["type"]
+        parser = keyword_parsers.get(token_type)
+
+        if parser is None:
+            self.error(f"unexpected keyword: {self.current()['value']}")
+
+        return parser()
+
     def parse_branch(self):
         self.expect("IF")
-        self.pos+=1
+        self.pos += 1
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
         condition = self.parse_expression()
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
         then_body = self.parse_block()
         else_body = None
-        if self.is_current_token_in(KEYWORDS['else']):
-            self.pos+=1
+        if self.is_current_token_in(KEYWORDS["else"]):
+            self.pos += 1
             else_body = self.parse_block()
 
         return self.node(
@@ -483,30 +539,30 @@ class Parser:
             body=then_body,
             else_body=else_body,
         )
-        
+
     def parse_return(self):
         self.expect("RETURN")
-        self.pos+=1
+        self.pos += 1
 
         value = None
         if not self.is_current_token_in("SEMICOLON"):
             value = self.parse_expression()
 
         self.expect("SEMICOLON", "';'")
-        self.pos+=1
+        self.pos += 1
         return self.node(RETURN_NODE, value=value)
-    
+
     def parse_output(self):
-        self.pos+=1
+        self.pos += 1
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
 
         value = self.parse_expression()
 
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
         self.expect(PUNCTUATION[";"], "';'")
-        self.pos+=1
+        self.pos += 1
         return self.node(OUTPUT, value=value)
 
     def parse_declaration_or_function(self):
@@ -516,35 +572,35 @@ class Parser:
         if self.is_current_token_in(IDENTIFIER) and self.next()["type"] == PUNCTUATION["("]:
             self.expect(IDENTIFIER, "function name")
             name = self.current()["value"]
-            self.pos+=1
+            self.pos += 1
             return self.parse_function_after_name(declared_type, name)
 
-        self.pos = start        
+        self.pos = start
         return self.parse_var_declaration()
 
     def parse_function_after_name(self, return_type, name):
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
         parameters = []
 
         if not self.is_current_token_in("RPAREN"):
             parameters.append(self.parse_parameter())
 
             while self.is_current_token_in(PUNCTUATION[","]):
-                self.pos+=1
+                self.pos += 1
                 parameters.append(self.parse_parameter())
 
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
         self.expect("LBRACE", "'{'")
-        self.pos+=1
+        self.pos += 1
 
         body = []
         while not self.is_current_token_in("RBRACE", "EOF"):
             body.append(self.parse_body_term())
 
         self.expect("RBRACE", "'}'")
-        self.pos+=1
+        self.pos += 1
 
         return self.node(
             "function",
@@ -553,33 +609,33 @@ class Parser:
             params=parameters,
             body=body,
         )
-        
+
     def parse_parameter(self):
         param_type = self.parse_type()
         self.expect(IDENTIFIER, "parameter name")
-        name  = self.current()["value"]
-        self.pos+=1
+        name = self.current()["value"]
+        self.pos += 1
 
         return self.node(
             PARAMETER,
             param_type=param_type,
             name=name,
         )
-        
+
     def parse_function(self):
         return_type = self.parse_type(allow_void=True)
         self.expect(IDENTIFIER, "function name")
-        name  = self.current()["value"]
-        self.pos+=1
+        name = self.current()["value"]
+        self.pos += 1
         return self.parse_function_after_name(return_type, name)
-    
+
     def parse_assignment(self):
         target = self.parse_lvalue()
         self.expect("ASSIGN", "'='")
-        self.pos+=1
+        self.pos += 1
         value = self.parse_initializer()
         self.expect("SEMICOLON", "';'")
-        self.pos+=1
+        self.pos += 1
 
         return self.node(
             ASSIGNMENT,
@@ -590,47 +646,50 @@ class Parser:
     def parse_lvalue(self):
         self.expect(IDENTIFIER, "variable name")
         name = self.current()["value"]
-        self.pos+=1
+        self.pos += 1
         target = self.node(VARIABLE, name=name)
 
         if self.is_current_token_in("LBRACKET"):
-            self.pos+=1
+            self.pos += 1
             index = self.parse_expression()
             self.expect("RBRACKET", "']'")
-            self.pos+=1
+            self.pos += 1
             target = self.node(INDEX, array=target, index=index)
 
         return target
-    
+
     def parse_call_statement(self):
         call = self.parse_function_call()
         self.expect("SEMICOLON", "';'")
-        self.pos+=1
+        self.pos += 1
         return self.node(CALL_STATEMENT, call=call)
 
     def parse_input_call(self):
-        self.pos+=1
+        self.pos += 1
         self.expect("LPAREN", "'('")
-        self.pos+=1
+        self.pos += 1
         self.expect("RPAREN", "')'")
-        self.pos+=1
+        self.pos += 1
 
         return self.node(INPUT)
-    
+
     def parse_int128_static_func(self):
         if self.is_current_token_in(KEYWORDS["setLength"]):
-            self.pos+=1
+            self.pos += 1
             self.expect(PUNCTUATION["("])
-            self.pos+=1
+            self.pos += 1
             value = self.parse_expression()
             self.expect(PUNCTUATION[")"])
-            self.pos+=1
-            
+            self.pos += 1
+
             self.expect(PUNCTUATION[";"])
             self.pos += 1
-            
-            return self.node(SET_VECTOR_LENGTH, value = value)
-        
+
+            return self.node(SET_VECTOR_LENGTH, value=value)
+
+        self.error("Expected setLength")
+        return None
+
     def decode_char(self, value):
         escapes = {
             r"\n": "\n",
@@ -639,7 +698,7 @@ class Parser:
             r"\0": "\0",
             r"\\": "\\",
             r"\'": "'",
-            r'\"': '"',
+            r"\"": '"',
         }
 
         if value in escapes:
@@ -647,3 +706,7 @@ class Parser:
 
         if len(value) == 1:
             return ord(value)
+
+        self.error(f"Trying to decode non-char: {value}")
+
+        return None

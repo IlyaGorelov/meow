@@ -1,0 +1,5 @@
+int char = hear();
+while (char != 0){
+    meow(char);
+    char = hear();
+}

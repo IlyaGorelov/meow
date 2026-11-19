@@ -1,34 +1,42 @@
-from lexer_token_types import *
+from lexer_token_types import (
+    CHAR_LITERAL,
+    COMMENT,
+    EOF,
+    IDENTIFIER,
+    KEYWORDS,
+    NUMBER_LITERAL,
+    OPERATORS,
+    PUNCTUATION,
+    STRING_LITERAL,
+)
+
 
 class Lexer:
     def __init__(self, source):
         self.source = source
         self.pos = 0
         self.line = 1
-        self.pos_in_line=0
+        self.pos_in_line = 0
         self.tokens = []
 
     def add_token(self, token_type, value):
-        self.tokens.append({"type": token_type, 
-                            "value": value, 
-                            "line": self.line,
-                            "char": self.pos_in_line-1})
+        self.tokens.append({"type": token_type, "value": value, "line": self.line, "char": self.pos_in_line - 1})
 
-    def tokenize(self):
+    def tokenize(self):  # noqa: C901
         while self.pos < len(self.source):
             char = self.source[self.pos]
 
             if char.isspace():
                 if char == "\n":
                     self.line += 1
-                    self.pos_in_line=0
+                    self.pos_in_line = 0
                 else:
-                    self.pos_in_line +=1 
-                    
+                    self.pos_in_line += 1
+
                 self.pos += 1
                 continue
 
-            if char == '#':
+            if char == "#":
                 self.read_comment()
                 continue
 
@@ -40,7 +48,7 @@ class Lexer:
                 self.read_char()
                 continue
 
-            if char.isdigit():
+            if char.isdigit() or (char == "-" and self.source[self.pos + 1].isdigit()):
                 self.read_number()
                 continue
 
@@ -62,10 +70,8 @@ class Lexer:
                 self.pos_in_line += 1
                 continue
 
-
-            raise SyntaxError(
-                f"Unknown character {char!r} at line {self.line}:{self.pos_in_line}"
-            )
+            msg = f"Unknown character {char!r} at line {self.line}:{self.pos_in_line}"
+            raise SyntaxError(msg)
 
         self.add_token(EOF, None)
         return self.tokens
@@ -73,17 +79,11 @@ class Lexer:
     def read_comment(self):
         start = self.pos
 
-        while (
-            self.pos < len(self.source)
-            and self.source[self.pos] != "\n"
-        ):
+        while self.pos < len(self.source) and self.source[self.pos] != "\n":
             self.pos += 1
             self.pos_in_line += 1
 
-        self.add_token(
-            COMMENT,
-            self.source[start:self.pos]
-        )
+        self.add_token(COMMENT, self.source[start : self.pos])
 
     def read_string(self):
         self.pos += 1
@@ -94,7 +94,7 @@ class Lexer:
             char = self.source[self.pos]
 
             if char == '"':
-                value = self.source[start:self.pos]
+                value = self.source[start : self.pos]
                 self.pos += 1
                 self.pos_in_line += 1
                 self.add_token(STRING_LITERAL, value)
@@ -107,34 +107,32 @@ class Lexer:
         self.pos += 1
         self.pos_in_line += 1
         start = self.pos
-        
+
         while self.pos < len(self.source):
             char = self.source[self.pos]
-            if char=="'":
+            if char == "'":
                 break
-            self.pos+=1
-            self.pos_in_line+=1
+            self.pos += 1
+            self.pos_in_line += 1
 
-        char = self.source[start:self.pos]
+        char = self.source[start : self.pos]
 
         self.pos += 1
-        self.pos_in_line+=1
+        self.pos_in_line += 1
         self.add_token(CHAR_LITERAL, char)
 
     def read_number(self):
         start = self.pos
 
-        while (
-            self.pos < len(self.source)
-            and (self.source[self.pos].isdigit() or self.source[self.pos] in "xb")
-        ):
+        if self.source[self.pos] == "-":
             self.pos += 1
-            self.pos_in_line+=1
+            self.pos_in_line += 1
 
-        self.add_token(
-            NUMBER_LITERAL,
-            self.source[start:self.pos]
-        )
+        while self.pos < len(self.source) and (self.source[self.pos].isdigit() or self.source[self.pos] in "xb"):
+            self.pos += 1
+            self.pos_in_line += 1
+
+        self.add_token(NUMBER_LITERAL, self.source[start : self.pos])
 
     def read_identifier(self):
         start = self.pos
@@ -144,11 +142,11 @@ class Lexer:
 
             if char.isalnum() or char == "_":
                 self.pos += 1
-                self.pos_in_line+=1
+                self.pos_in_line += 1
             else:
                 break
 
-        value = self.source[start:self.pos]
+        value = self.source[start : self.pos]
         token_type = KEYWORDS.get(value, IDENTIFIER)
 
         self.add_token(token_type, value)
