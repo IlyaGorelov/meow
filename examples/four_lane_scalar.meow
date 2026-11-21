@@ -1,31 +1,27 @@
 int n = hear();
 
-if (n < 0) {
-    meow(-1);
-} else {
-    int i = 0;
+int i = 0;
 
-    while (i < n) {
-        int a0 = hear();
-        int a1 = hear();
-        int a2 = hear();
-        int a3 = hear();
+while (i < n) {
+    int a0 = hear();
+    int a1 = hear();
+    int a2 = hear();
+    int a3 = hear();
 
-        int b0 = hear();
-        int b1 = hear();
-        int b2 = hear();
-        int b3 = hear();
+    int b0 = hear();
+    int b1 = hear();
+    int b2 = hear();
+    int b3 = hear();
 
-        int y0 = a0 * b0;
-        int y1 = a1 * b1;
-        int y2 = a2 * b2;
-        int y3 = a3 * b3;
+    int y0 = a0 * b0;
+    int y1 = a1 * b1;
+    int y2 = a2 * b2;
+    int y3 = a3 * b3;
 
-        meow(y0);
-        meow(y1);
-        meow(y2);
-        meow(y3);
+    meow(y0);
+    meow(y1);
+    meow(y2);
+    meow(y3);
 
-        i = i + 1;
-    }
+    i = i + 1;
 }

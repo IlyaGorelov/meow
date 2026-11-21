@@ -1,50 +1,47 @@
 int n = hear();
 
-if (n < 0) {
-    meow(-1);
-} else {
-    int i = 0;
 
-    int[] a_data = {0, 0, 0, 0};
-    int[] b_data = {0, 0, 0, 0};
-    int[] output = {0, 0, 0, 0};
+int i = 0;
 
-    int128.setLength(4);
+int[] a_data = {0, 0, 0, 0};
+int[] b_data = {0, 0, 0, 0};
+int[] output = {0, 0, 0, 0};
 
-    while (i < n) {
-        int a0 = hear();
-        int a1 = hear();
-        int a2 = hear();
-        int a3 = hear();
+int128.setLength(4);
 
-        int b0 = hear();
-        int b1 = hear();
-        int b2 = hear();
-        int b3 = hear();
+while (i < n) {
+    int a0 = hear();
+    int a1 = hear();
+    int a2 = hear();
+    int a3 = hear();
 
-        a_data[0] = a0;
-        a_data[1] = a1;
-        a_data[2] = a2;
-        a_data[3] = a3;
+    int b0 = hear();
+    int b1 = hear();
+    int b2 = hear();
+    int b3 = hear();
 
-        b_data[0] = b0;
-        b_data[1] = b1;
-        b_data[2] = b2;
-        b_data[3] = b3;
+    a_data[0] = a0;
+    a_data[1] = a1;
+    a_data[2] = a2;
+    a_data[3] = a3;
 
-        int128 a = a_data[0];
-        int128 b = b_data[0];
+    b_data[0] = b0;
+    b_data[1] = b1;
+    b_data[2] = b2;
+    b_data[3] = b3;
 
-        int128 y = a * b;
+    int128 a = a_data[0];
+    int128 b = b_data[0];
+
+    int128 y = a * b;
 
 
-        output[0] = y;
+    output[0] = y;
 
-        meow(output[0]);
-        meow(output[1]);
-        meow(output[2]);
-        meow(output[3]);
+    meow(output[0]);
+    meow(output[1]);
+    meow(output[2]);
+    meow(output[3]);
 
-        i = i + 1;
-    }
+    i = i + 1;
 }

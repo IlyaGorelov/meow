@@ -1,22 +1,24 @@
 long a = 324235230005200052;
 long b = 34343;
 
-long c = 2423523005234395;
+long c = 324235230005234395;
 
-string t = "true0";
-string f = "false0";
+string t = "true";
+string f = "false";
 
 if (a+b==c){
     writeline(t);
 }
+else{
+    writeline(f);
+}
 
-writeline(f);
 
 void writeline(string s){
     int i = 0;
     byte cur = s[i];
 
-    while(cur!='0'){
+    while(cur!=0){
         meow(cur);
         i=i+1;
         cur = s[i];

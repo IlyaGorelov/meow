@@ -166,8 +166,10 @@ class Parser:
         if token_type in TYPE_TOKENS.values():
             return self.parse_declaration_or_function()
 
-        if token_type == IDENTIFIER:
-            return self.parse_identifier_statement()
+        if self.is_current_token_in(IDENTIFIER):
+            if self.next()["type"] == "LPAREN":
+                return self.parse_call_statement()
+            return self.parse_assignment()
 
         self.error(f"unexpected token {self.current()}")
         return None

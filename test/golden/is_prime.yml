@@ -1,0 +1,402 @@
+in_source: |-
+  int number = hear();
+
+  int res = is_prime(number);
+
+  if (res == 1) {
+      meow('P');
+  } else {
+      if (res == 0) {
+          meow('N');
+      } else {
+          meow('I');
+      }
+  }
+
+  int is_prime(int n){
+      if (n<1){
+          return -1;
+      }
+      if(n==1){
+          return 0;
+      }
+
+      int i = 2;
+
+      while (i < n) {
+              if (n % i == 0) {
+                  return 0;
+              }
+
+              i = i + 1;
+      }
+      return 1;
+  }
+in_stdin: |
+  23
+in_stdout_repr: char
+ast:
+  type: program
+  body:
+  - type: var_declaration
+    var_type: int
+    name: number
+    value:
+      type: input
+  - type: var_declaration
+    var_type: int
+    name: res
+    value:
+      type: function_call
+      name: is_prime
+      args:
+      - type: variable
+        name: number
+  - type: if
+    condition:
+      type: binary
+      operator: ==
+      left:
+        type: variable
+        name: res
+      right:
+        type: int
+        value: 1
+    body:
+    - type: output
+      value:
+        type: byte
+        value: 80
+    else_body:
+    - type: if
+      condition:
+        type: binary
+        operator: ==
+        left:
+          type: variable
+          name: res
+        right:
+          type: int
+          value: 0
+      body:
+      - type: output
+        value:
+          type: byte
+          value: 78
+      else_body:
+      - type: output
+        value:
+          type: byte
+          value: 73
+  - type: function
+    return_type: int
+    name: is_prime
+    params:
+    - type: parameter
+      param_type: int
+      name: n
+    body:
+    - type: if
+      condition:
+        type: binary
+        operator: <
+        left:
+          type: variable
+          name: n
+        right:
+          type: int
+          value: 1
+      body:
+      - type: return
+        value:
+          type: int
+          value: -1
+      else_body:
+    - type: if
+      condition:
+        type: binary
+        operator: ==
+        left:
+          type: variable
+          name: n
+        right:
+          type: int
+          value: 1
+      body:
+      - type: return
+        value:
+          type: int
+          value: 0
+      else_body:
+    - type: var_declaration
+      var_type: int
+      name: i
+      value:
+        type: int
+        value: 2
+    - type: while
+      condition:
+        type: binary
+        operator: <
+        left:
+          type: variable
+          name: i
+        right:
+          type: variable
+          name: n
+      body:
+      - type: if
+        condition:
+          type: binary
+          operator: ==
+          left:
+            type: binary
+            operator: '%'
+            left:
+              type: variable
+              name: n
+            right:
+              type: variable
+              name: i
+          right:
+            type: int
+            value: 0
+        body:
+        - type: return
+          value:
+            type: int
+            value: 0
+        else_body:
+      - type: assignment
+        target:
+          type: variable
+          name: i
+        value:
+          type: binary
+          operator: +
+          left:
+            type: variable
+            name: i
+          right:
+            type: int
+            value: 1
+    - type: return
+      value:
+        type: int
+        value: 1
+out_code: !!binary |
+  AAARAvoBAQEAAAKJAAADggADg4EAU4AIAAADggADg4EAA4KH/8EBAQChAAgAAoUBCcAAhAAFAoEA
+  AQUHAEEBAQAAA4IAQ4OBAFOACAAAA4IAQ4OBAAOCh//BAQEAUQAIABACgQACgwEAAQKHAEEBAQBi
+  0oMAEqKBAAKmBgUAAoEAUIAKBEAABAAAA4IAQ4OBAAOCh//BAQEAUQAIAAACgQACgwEAAQKHAEEB
+  AQBi0oMAEqKBAAKmBgTgAoEAUIAKAIAABASQAoEAUIAKAAAAC/9BAQEAEQQIAIECCAABBAEABQKB
+  /8EBAQBRAAgAEAKBAAKDAQABAocAQQEBAGKigwACqAb/8AKBAAKFAQ8AAAQAAAAEAAUCgf/BAQEA
+  UQAIABACgQACgwEAAQKHAEEBAQBi0oMAEqKBAAKoBgAAAoEAAoUBC4AABAAAAAQAIAKBAFQACAAE
+  Aof/wQEBAFEACAAFAoEAAoMBAAEChwBBAQEAYqKDBgKuBgAFAoH/wQEBAFEACAAEAocAAoMBAAEC
+  hwBBAQECYuKD/8EBAQBRAAgAAAKBAAKDAQABAocAQQEBAGLSgwASooEAAqgGAAACgQAChQEDgAAE
+  AAAABAAEAof/wQEBAFEACAAQAoEAAoMBAAEChwBBAQEAYoKDAFQACPYf8AQAEAKBAAKFAQAAAAQA
+  hACHAEQChwDEAQEAAoQBAACABQ==
+
+out_code_hex: |-
+  00000000 - 00001102 - LUI sp, 1
+  00000004 - FA010101 - addi sp, sp, -96
+  00000008 - 00000289 - IN t0, 0
+  0000000C - 00000382 - LUI t2, 0
+  00000010 - 00038381 - addi t2, t2, 0
+  00000014 - 00538008 - sw t0, 0(t2)
+  00000018 - 00000382 - LUI t2, 0
+  0000001C - 00038381 - addi t2, t2, 0
+  00000020 - 00038287 - lw t0, 0(t2)
+  00000024 - FFC10101 - addi sp, sp, -4
+  00000028 - 00A10008 - sw a0, 0(sp)
+  0000002C - 00028501 - addi a0, t0, 0
+  00000030 - 09C00084 - JAL ra, 0x9c
+  00000034 - 00050281 - addi t0, a0, 0
+  00000038 - 00010507 - lw a0, 0(sp)
+  0000003C - 00410101 - addi sp, sp, 4
+  00000040 - 00000382 - LUI t2, 0
+  00000044 - 00438381 - addi t2, t2, 4
+  00000048 - 00538008 - sw t0, 0(t2)
+  0000004C - 00000382 - LUI t2, 0
+  00000050 - 00438381 - addi t2, t2, 4
+  00000054 - 00038287 - lw t0, 0(t2)
+  00000058 - FFC10101 - addi sp, sp, -4
+  0000005C - 00510008 - sw t0, 0(sp)
+  00000060 - 00100281 - addi t0, zero, 1
+  00000064 - 00028301 - addi t1, t0, 0
+  00000068 - 00010287 - lw t0, 0(sp)
+  0000006C - 00410101 - addi sp, sp, 4
+  00000070 - 0062D283 - xor t0, t0, t1
+  00000074 - 0012A281 - sltiu t0, t0, 1
+  00000078 - 0002A606 - beq t0, zero, 0xc
+  0000007C - 05000281 - addi t0, zero, 80
+  00000080 - 0050800A - OUT t0, 1
+  00000084 - 04400004 - JAL zero, 0x44
+  00000088 - 00000382 - LUI t2, 0
+  0000008C - 00438381 - addi t2, t2, 4
+  00000090 - 00038287 - lw t0, 0(t2)
+  00000094 - FFC10101 - addi sp, sp, -4
+  00000098 - 00510008 - sw t0, 0(sp)
+  0000009C - 00000281 - addi t0, zero, 0
+  000000A0 - 00028301 - addi t1, t0, 0
+  000000A4 - 00010287 - lw t0, 0(sp)
+  000000A8 - 00410101 - addi sp, sp, 4
+  000000AC - 0062D283 - xor t0, t0, t1
+  000000B0 - 0012A281 - sltiu t0, t0, 1
+  000000B4 - 0002A606 - beq t0, zero, 0xc
+  000000B8 - 04E00281 - addi t0, zero, 78
+  000000BC - 0050800A - OUT t0, 1
+  000000C0 - 00800004 - JAL zero, 0x8
+  000000C4 - 04900281 - addi t0, zero, 73
+  000000C8 - 0050800A - OUT t0, 1
+  000000CC - 0000000B - HALT
+  000000D0 - FF410101 - addi sp, sp, -12
+  000000D4 - 00110408 - sw ra, 8(sp)
+  000000D8 - 00810208 - sw s0, 4(sp)
+  000000DC - 00010401 - addi s0, sp, 0
+  000000E0 - 00050281 - addi t0, a0, 0
+  000000E4 - FFC10101 - addi sp, sp, -4
+  000000E8 - 00510008 - sw t0, 0(sp)
+  000000EC - 00100281 - addi t0, zero, 1
+  000000F0 - 00028301 - addi t1, t0, 0
+  000000F4 - 00010287 - lw t0, 0(sp)
+  000000F8 - 00410101 - addi sp, sp, 4
+  000000FC - 0062A283 - slt t0, t0, t1
+  00000100 - 0002A806 - beq t0, zero, 0x10
+  00000104 - FFF00281 - addi t0, zero, -1
+  00000108 - 00028501 - addi a0, t0, 0
+  0000010C - 0F000004 - JAL zero, 0xf0
+  00000110 - 00000004 - JAL zero, 0x0
+  00000114 - 00050281 - addi t0, a0, 0
+  00000118 - FFC10101 - addi sp, sp, -4
+  0000011C - 00510008 - sw t0, 0(sp)
+  00000120 - 00100281 - addi t0, zero, 1
+  00000124 - 00028301 - addi t1, t0, 0
+  00000128 - 00010287 - lw t0, 0(sp)
+  0000012C - 00410101 - addi sp, sp, 4
+  00000130 - 0062D283 - xor t0, t0, t1
+  00000134 - 0012A281 - sltiu t0, t0, 1
+  00000138 - 0002A806 - beq t0, zero, 0x10
+  0000013C - 00000281 - addi t0, zero, 0
+  00000140 - 00028501 - addi a0, t0, 0
+  00000144 - 0B800004 - JAL zero, 0xb8
+  00000148 - 00000004 - JAL zero, 0x0
+  0000014C - 00200281 - addi t0, zero, 2
+  00000150 - 00540008 - sw t0, 0(s0)
+  00000154 - 00040287 - lw t0, 0(s0)
+  00000158 - FFC10101 - addi sp, sp, -4
+  0000015C - 00510008 - sw t0, 0(sp)
+  00000160 - 00050281 - addi t0, a0, 0
+  00000164 - 00028301 - addi t1, t0, 0
+  00000168 - 00010287 - lw t0, 0(sp)
+  0000016C - 00410101 - addi sp, sp, 4
+  00000170 - 0062A283 - slt t0, t0, t1
+  00000174 - 0602AE06 - beq t0, zero, 0x7c
+  00000178 - 00050281 - addi t0, a0, 0
+  0000017C - FFC10101 - addi sp, sp, -4
+  00000180 - 00510008 - sw t0, 0(sp)
+  00000184 - 00040287 - lw t0, 0(s0)
+  00000188 - 00028301 - addi t1, t0, 0
+  0000018C - 00010287 - lw t0, 0(sp)
+  00000190 - 00410101 - addi sp, sp, 4
+  00000194 - 0262E283 - rem t0, t0, t1
+  00000198 - FFC10101 - addi sp, sp, -4
+  0000019C - 00510008 - sw t0, 0(sp)
+  000001A0 - 00000281 - addi t0, zero, 0
+  000001A4 - 00028301 - addi t1, t0, 0
+  000001A8 - 00010287 - lw t0, 0(sp)
+  000001AC - 00410101 - addi sp, sp, 4
+  000001B0 - 0062D283 - xor t0, t0, t1
+  000001B4 - 0012A281 - sltiu t0, t0, 1
+  000001B8 - 0002A806 - beq t0, zero, 0x10
+  000001BC - 00000281 - addi t0, zero, 0
+  000001C0 - 00028501 - addi a0, t0, 0
+  000001C4 - 03800004 - JAL zero, 0x38
+  000001C8 - 00000004 - JAL zero, 0x0
+  000001CC - 00040287 - lw t0, 0(s0)
+  000001D0 - FFC10101 - addi sp, sp, -4
+  000001D4 - 00510008 - sw t0, 0(sp)
+  000001D8 - 00100281 - addi t0, zero, 1
+  000001DC - 00028301 - addi t1, t0, 0
+  000001E0 - 00010287 - lw t0, 0(sp)
+  000001E4 - 00410101 - addi sp, sp, 4
+  000001E8 - 00628283 - add t0, t0, t1
+  000001EC - 00540008 - sw t0, 0(s0)
+  000001F0 - F61FF004 - JAL zero, -0xa0
+  000001F4 - 00100281 - addi t0, zero, 1
+  000001F8 - 00028501 - addi a0, t0, 0
+  000001FC - 00000004 - JAL zero, 0x0
+  00000200 - 00840087 - lw ra, 8(s0)
+  00000204 - 00440287 - lw t0, 4(s0)
+  00000208 - 00C40101 - addi sp, s0, 12
+  0000020C - 00028401 - addi s0, t0, 0
+  00000210 - 00008005 - JALR zero, 0(ra)
+
+out_data: !!binary |
+  AAAAAAAAAAA=
+
+out_data_hex: |-
+  00000000 - 00000000
+  00000004 - 00000000
+
+out_stdout: |
+  ============================================================
+  P
+  ticks: 1983
+
+out_log: |-
+  DEBUG    machine:simulation           TICK:   0 PC:   0/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   1 PC:   4/5 RA:   0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   2 PC:   4/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   3 PC:   8/1 RA:   0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   4 PC:   8/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   5 PC:  12/49 RA:   0 	IN, goto FETCH
+  DEBUG    data_path:input_read           input: 23
+  DEBUG    machine:simulation           TICK:   6 PC:  12/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   7 PC:  16/5 RA:   0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   8 PC:  16/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   9 PC:  20/1 RA:   0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  10 PC:  20/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  11 PC:  24/41 RA:   0 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:  12 PC:  24/42 RA:   0 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:  13 PC:  24/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  14 PC:  28/5 RA:   0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:  15 PC:  28/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  16 PC:  32/1 RA:   0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  17 PC:  32/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  18 PC:  36/45 RA:   0 	LW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:  19 PC:  36/46 RA:   0 	LW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:  20 PC:  36/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  21 PC:  40/1 RA:   0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  22 PC:  40/0 RA:   0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  23 PC:  44/41 RA:   0 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:  24 PC:  44/42 RA: 3996 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:  25 PC:  44/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  26 PC:  48/1 RA: 3996 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  27 PC:  48/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  28 PC:  52/20 RA: 3996 	JAL, goto FETCH
+  DEBUG    machine:simulation           TICK:  29 PC: 208/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  30 PC: 212/1 RA: 3996 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  31 PC: 212/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  32 PC: 216/41 RA: 3996 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:  33 PC: 216/42 RA: 3992 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:  34 PC: 216/0 RA: 3992 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  35 PC: 220/41 RA: 3992 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:  36 PC: 220/42 RA: 3988 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:  37 PC: 220/0 RA: 3988 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  38 PC: 224/1 RA: 3988 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  39 PC: 224/0 RA: 3988 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  40 PC: 228/1 RA: 3988 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  41 PC: 228/0 RA: 3988 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:  42 PC: 232/1 RA: 3988 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:  43 PC: 232/0 RA: 3988 	FETCH: Dispatch, PC+=1
+
+  ... [LOG TRUNCATED] ...
+
+  DEBUG    machine:simulation           TICK: 1979 PC: 132/50 RA: 3996 	OUT, goto FETCH
+  DEBUG    data_path:port_write           output: P
+  DEBUG    machine:simulation           TICK: 1980 PC: 132/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK: 1981 PC: 136/20 RA: 3996 	JAL, goto FETCH
+  DEBUG    machine:simulation           TICK: 1982 PC: 204/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK: 1983 PC: 208/22 RA: 3996 	HALT
+  INFO     machine:simulation           output_buffer: 'P'
+  EOF

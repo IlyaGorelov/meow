@@ -4,8 +4,6 @@ from isa import Opcode, binary_to_opcode
 
 
 class DataPath:
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)-8s %(name)-20s %(message)s")
-
     def __init__(self, code, data_memory_size, data_mem, input_buffer, output_type="dec"):
         assert data_memory_size > 0, "Data_memory size should be non-zero"
 
@@ -227,8 +225,7 @@ class DataPath:
 
         value = buffer.pop(0)
 
-        logger = logging.getLogger("data_path:input_read")
-        logger.debug("input: %s", str(value))
+        logging.debug("input: %s", str(value))
 
         if isinstance(value, str):
             value = ord(value)
@@ -236,15 +233,13 @@ class DataPath:
         return value
 
     def port_write(self):
-        logger = logging.getLogger("data_path:port_write")
-
         buffer = self.io_mapping[self.rs1]
         if self.output_type == "dec":
             buffer.append(str(self.regs[self.rs2]))
-            logger.debug("output: %s", str(self.regs[self.rs2]))
+            logging.debug("output: %s", str(self.regs[self.rs2]))
         else:
             buffer.append(chr(self.regs[self.rs2]))
-            logger.debug("output: %s", chr(self.regs[self.rs2]))
+            logging.debug("output: %s", chr(self.regs[self.rs2]))
 
     def latch_vl(self):
         assert 1 <= self.alu_result <= 4, "Vector Length must be [1;4]"

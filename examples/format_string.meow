@@ -1,47 +1,53 @@
-string input = "Number: %-5d\n-10\n";
+string input = "R: %5d. L: %-5d. N: %d\n42\n7\n-123\n";
 
 byte[] format = new byte[32];
 
 int i = 0;
 
 # reading format part of the string
-while (input[i] != '\n') {
-    format[i] = input[i];
+byte cur_char = hear();
+while (cur_char != '\n') {
+    format[i] = cur_char;
 
     i = i + 1;
+    cur_char = hear();
 }
 
 format[i] = 0;
 
-i = i + 1;
+cur_char = hear();
 
 # reading numbers and converting them
 int[] numbers = new int[16];
 int number_count = 0;
 
-while (input[i] != 0) {
+while (cur_char != 0) {
     int value = 0;
     int sign = 1;
 
-    if (input[i] == '-') {
+    if (cur_char == '-') {
         sign = -1;
         i = i + 1;
+        cur_char = hear();
     } else {
-        if (input[i] == '+') {
+        if (cur_char == '+') {
             i = i + 1;
+            cur_char = hear();
         }
     }
 
-    while (input[i] >= '0' && input[i] <= '9') {
-        value = value * 10 + input[i] - '0';
+    while (cur_char >= '0' && cur_char <= '9') {
+        value = value * 10 + cur_char - '0';
         i = i + 1;
+        cur_char = hear();
     }
 
     numbers[number_count] = value * sign;
     number_count = number_count + 1;
 
-    if (input[i] == '\n') {
+    if (cur_char == '\n') {
         i = i + 1;
+        cur_char = hear();
     }
 }
 
@@ -133,3 +139,4 @@ while (format[i] != 0) {
         }
     }
 }
+

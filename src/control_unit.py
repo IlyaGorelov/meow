@@ -96,11 +96,14 @@ class ControlUnit:
         if decoded["latch_mpc"] == 1:
             cond = Cond(decoded["cond"])
             mpc_mux = MPCMux(decoded["mpc_mux"])
-            signals.append((lambda mpc_mux=mpc_mux, cond=cond: self.latch_mpc(mpc_mux, cond), 0))
+            if mpc_mux == MPCMux.DISPATCH:
+                signals.append((lambda mpc_mux=mpc_mux, cond=cond: self.latch_mpc(mpc_mux, cond), 0))
+            else:
+                signals.append((lambda mpc_mux=mpc_mux, cond=cond: self.latch_mpc(mpc_mux, cond), 8))
 
         if decoded["latch_pc"]:
             t = PCMux(decoded["pc_mux"])
-            signals.append((lambda t=t: self.data_path.latch_pc(t.name.lower()), 6))
+            signals.append((lambda t=t: self.data_path.latch_pc(t.name.lower()), 7))
 
         if decoded["alu_left"] != AluLeft.NONE:
             t = AluLeft(decoded["alu_left"])

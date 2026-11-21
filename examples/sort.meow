@@ -3,10 +3,10 @@ int[] array = new int[20];
 int cur_number = 1;
 int i = 0;
 
-while (cur_number != '0') {
+while (cur_number != 0) {
     cur_number = hear();
 
-    if (cur_number != '0') {
+    if (cur_number != 0) {
         array[i] = cur_number;
         i = i + 1;
     }

@@ -6,24 +6,22 @@ from data_path import DataPath
 
 
 def simulation(code, data, input_tokens, data_memory_size, limit, output_type="dec"):
-    logger = logging.getLogger("machine:simulation")
-
     data_path = DataPath(code, data_memory_size, data, input_tokens, output_type)
     control_unit = ControlUnit(data_path)
 
-    logger.debug("%s", control_unit)
+    logging.debug("%s", control_unit)
     try:
         while control_unit._tick < limit:
             control_unit.process_next_tick()
-            logger.debug("%s", control_unit)
+            logging.debug("%s", control_unit)
     except EOFError:
-        logger.warning("Input buffer is empty!")
+        logging.warning("Input buffer is empty!")
     except StopIteration:
         pass
 
     if control_unit._tick >= limit:
-        logger.warning("Limit exceeded!")
-    logger.info("output_buffer: %s", repr(", ".join(data_path.io_mapping[1])))
+        logging.warning("Limit exceeded!")
+    logging.info("output_buffer: %s", repr(", ".join(data_path.io_mapping[1])))
     return "".join(data_path.io_mapping[1]), control_unit.current_tick()
 
 
@@ -63,6 +61,10 @@ def main(code_file, data_file, input_file, output_type="dec"):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(levelname)-8s %(module)s:%(funcName)-15s %(message)s",
+    )
     parser = argparse.ArgumentParser(description="My program")
 
     parser.add_argument("code_file", help="Machine code file")

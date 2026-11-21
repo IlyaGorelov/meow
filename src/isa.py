@@ -545,7 +545,7 @@ class Assembler:
         )
 
         imm = Assembler.sign_extend(imm, 21)
-        return "JAL", f"{reg(rd)}, {imm}"
+        return "JAL", f"{reg(rd)}, {hex(imm)}"
 
     @staticmethod
     def decode_jalr(instruction, rd, rs1, rs2, funct3, funct7, reg):
@@ -564,7 +564,7 @@ class Assembler:
         )
 
         imm = Assembler.sign_extend(imm, 13)
-        return mnemonic, f"{reg(rs1)}, {reg(rs2)}, {imm}"
+        return mnemonic, f"{reg(rs1)}, {reg(rs2)}, {hex(imm)}"
 
     @staticmethod
     def decode_load(instruction, rd, rs1, rs2, funct3, funct7, reg):
@@ -604,7 +604,7 @@ class Assembler:
     @staticmethod
     def decode_vsetvli(instruction, rd, rs1, rs2, funct3, funct7, reg):
         imm = Assembler.sign_extend(instruction >> 20, 12)
-        return "VSETVLI", f"{reg(rd)}, {imm}"
+        return "VSETVLI", f"{reg(rd)}, {hex(imm)}"
 
     @staticmethod
     def decode_vload(instruction, rd, rs1, rs2, funct3, funct7, reg):

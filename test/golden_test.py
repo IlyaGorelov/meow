@@ -35,7 +35,7 @@ def test_translator_and_machine(golden, caplog):
         with contextlib.redirect_stdout(io.StringIO()) as stdout:
             translator.main(source, target)
             print("============================================================")
-            machine.main(target, target_data, input_stream)
+            machine.main(target, target_data, input_stream, golden["in_stdout_repr"])
 
         # Выходные данные также считываем в переменные.
         with open(target, "rb") as file:
@@ -47,14 +47,35 @@ def test_translator_and_machine(golden, caplog):
         with open(target_data_hex, encoding="utf-8") as file:
             data_hex = file.read()
         with open(target_ast, encoding="utf-8") as file:
-            ast = file.read()
+            ast = yaml.safe_load(file.read())
 
         # Проверяем, что ожидания соответствуют реальности.
 
-        assert yaml.safe_load(ast) == yaml.safe_load(str(golden.out["ast"]))
+        assert ast == golden.out["ast"]
         assert code == golden.out["out_code"]
         assert code_hex == golden.out["out_code_hex"]
         assert data == golden.out["out_data"]
         assert data_hex == golden.out["out_data_hex"]
         assert stdout.getvalue() == golden.out["out_stdout"]
-        assert caplog.text[0:MAX_LOG] + "EOF" == golden.out["out_log"]
+
+        assert truncate_log(caplog.text) + "EOF" == golden.out["out_log"]
+
+
+def truncate_log(log: str, first: int = 4000, last: int = 500) -> str:
+    if len(log) <= first + last:
+        return log
+
+    # End the first part at a newline before the limit
+    first_end = log.rfind("\n", 0, first)
+    if first_end == -1:
+        first_end = first
+
+    # Start the last part at a newline before the last section
+    tail_limit = len(log) - last
+    last_start = log.rfind("\n", 0, tail_limit)
+    if last_start == -1:
+        last_start = tail_limit
+    else:
+        last_start += 1  # skip the newline itself
+
+    return log[: first_end + 1] + "\n... [LOG TRUNCATED] ...\n\n" + log[last_start:]
