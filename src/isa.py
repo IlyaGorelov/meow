@@ -182,11 +182,7 @@ class Assembler:
     def encode_j(opcode, rd, imm):
         imm &= 0x1FFFFF
 
-        return (
-            ((imm >> 1) << 12)
-            | (rd << 7)
-            | Assembler.get_opcode(opcode)
-        )
+        return ((imm >> 1) << 12) | (rd << 7) | Assembler.get_opcode(opcode)
 
     @staticmethod
     def encode_b(opcode, funct3, rs1, rs2, imm):
@@ -461,7 +457,8 @@ class Assembler:
         code = Assembler.assemble(code)
         result = []
 
-        register_names = {number: name for name, number in registers.items() if not name.startswith("v")}
+        register_names = {number: name for name,
+                          number in registers.items() if not name.startswith("v")}
 
         def reg(number, vector=False):
             return f"v{number}" if vector else register_names[number]
@@ -500,7 +497,8 @@ class Assembler:
             if decoder is None:
                 operands = ""
             else:
-                mnemonic, operands = decoder(instruction, rd, rs1, rs2, funct3, funct7, reg)
+                mnemonic, operands = decoder(
+                    instruction, rd, rs1, rs2, funct3, funct7, reg)
 
             hex_word = f"{instruction:08X}"
             address = i * 4
@@ -517,12 +515,14 @@ class Assembler:
 
     @staticmethod
     def decode_r_type(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, (f3, f7) in r_instructions.items() if f3 == funct3 and f7 == funct7)
+        mnemonic = next(name for name, (f3, f7) in r_instructions.items(
+        ) if f3 == funct3 and f7 == funct7)
         return mnemonic, f"{reg(rd)}, {reg(rs1)}, {reg(rs2)}"
 
     @staticmethod
     def decode_i_type(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, f3 in i_instructions.items() if f3 == funct3)
+        mnemonic = next(
+            name for name, f3 in i_instructions.items() if f3 == funct3)
         imm = Assembler.sign_extend(instruction >> 20, 12)
 
         return mnemonic, f"{reg(rd)}, {reg(rs1)}, {imm}"
@@ -546,7 +546,8 @@ class Assembler:
 
     @staticmethod
     def decode_branch(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, f3 in branch_instructions.items() if f3 == funct3)
+        mnemonic = next(
+            name for name, f3 in branch_instructions.items() if f3 == funct3)
 
         imm = (
             (((instruction >> 31) & 0x1) << 12)
@@ -560,14 +561,16 @@ class Assembler:
 
     @staticmethod
     def decode_load(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, f3 in load_instructions.items() if f3 == funct3)
+        mnemonic = next(
+            name for name, f3 in load_instructions.items() if f3 == funct3)
 
         imm = Assembler.sign_extend(instruction >> 20, 12)
         return mnemonic, f"{reg(rd)}, {imm}({reg(rs1)})"
 
     @staticmethod
     def decode_store(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, f3 in store_instructions.items() if f3 == funct3)
+        mnemonic = next(
+            name for name, f3 in store_instructions.items() if f3 == funct3)
 
         imm = (((instruction >> 25) & 0x7F) << 5) | ((instruction >> 7) & 0x1F)
         imm = Assembler.sign_extend(imm, 12)
@@ -588,7 +591,8 @@ class Assembler:
 
     @staticmethod
     def decode_vector(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        mnemonic = next(name for name, (f3, f7) in vector_r_instructions.items() if f3 == funct3 and f7 == funct7)
+        mnemonic = next(name for name, (f3, f7) in vector_r_instructions.items(
+        ) if f3 == funct3 and f7 == funct7)
 
         operands = f"{reg(rd, True)}, {reg(rs1, True)}, {reg(rs2, True)}"
         return mnemonic, operands
