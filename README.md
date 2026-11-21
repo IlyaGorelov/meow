@@ -24,187 +24,217 @@
 ---
 
 - Преподаватель: Пенской Александр Владимирович.
+- Выполнил: Горелов Илья Александрович, P3231
 - `alg | risc | harv | mc | stream | port | cstr | vector | alg1`
 
 ## Язык программирования
 
 ```ebnf
-<program> ::= <term>*
+program             = { top_level_statement }
 
-<term> ::= <var_declaration>
-         | <const_declaration>
-         | <var_assignment>
-         | <function>
-         | <cycle>
-         | <branch>
-         | <comment>
-         | <function_call_statement>
-         | <output>
-         | <continue_statement>
-         | <break_statement>
-         | <return_statement>
+top_level_statement = comment
+                    | declaration
+                    | function
+                    | const_declaration
+                    | while_statement
+                    | if_statement
+                    | continue_statement
+                    | break_statement
+                    | return_statement
+                    | output_statement
+                    | call_statement
+                    | assignment
+                    | int128_statement
 
+declaration         = type identifier "=" initializer ";"
 
-<var_declaration> ::= <type> <name> = <initializer> ;
+const_declaration   = "const" type identifier "=" initializer ";"
 
-<type> ::= <primitive_type>
-         | <array_type>
+type                = primitive_type
+                    | array_type
 
-<primitive_type> ::= int
-                   | long
-                   | byte
-                   | bool
-                   | string
+primitive_type      = "int"
+                    | "int128"
+                    | "long"
+                    | "byte"
+                    | "string"
+                    | "bool"
 
-<array_type> ::= int []
-               | long []
-               | byte []
+array_type          = array_element_type "[]"
 
-<name> ::= <letter_or_digit_or_underscore>
+array_element_type  = "int"
+                    | "long"
+                    | "byte"
+                    | "bool"
 
-<initializer> ::= <expression>
-                | <array_creation>
+function            = return_type identifier "("[ parameter_list ]")" block
 
-<expression> ::= <logical_or_expression>
+return_type         = type | "void"
 
-<logical_or_expression> ::= <logical_and_expression>
-                          | <logical_or_expression> || <logical_and_expression>
+parameter_list      = parameter { "," parameter }
 
-<logical_and_expression> ::= <bitwise_or_expression>
-                           | <logical_and_expression> && <bitwise_or_expression>
+parameter           = type identifier
 
-<bitwise_or_expression> ::= <bitwise_and_expression>
-                          | <bitwise_or_expression> | <bitwise_and_expression>
+block               = "{" { body_statement } "}"
 
-<bitwise_and_expression> ::= <equality_expression>
-                           | <bitwise_and_expression> & <equality_expression>
+body_statement      = comment
+                    | declaration
+                    | const_declaration
+                    | assignment
+                    | call_statement
+                    | while_statement
+                    | if_statement
+                    | continue_statement
+                    | break_statement
+                    | return_statement
+                    | output_statement
+                    | int128_statement
 
-<equality_expression> ::= <relational_expression>
-                        | <equality_expression> == <relational_expression>
-                        | <equality_expression> != <relational_expression>
+assignment          = lvalue "=" initializer ";"
 
-<relational_expression> ::= <additive_expression>
-                          | <relational_expression> < <additive_expression>
-                          | <relational_expression> > <additive_expression>
-                          | <relational_expression> <= <additive_expression>
-                          | <relational_expression> >= <additive_expression>
+lvalue              = identifier [ "[" expression "]" ]
 
-<additive_expression> ::= <multiplicative_expression>
-                        | <additive_expression> + <multiplicative_expression>
-                        | <additive_expression> - <multiplicative_expression>
+call_statement     = function_call ";"
 
-<multiplicative_expression> ::= <unary_expression>
-                              | <multiplicative_expression> * <unary_expression>
-                              | <multiplicative_expression> / <unary_expression>
-                              | <multiplicative_expression> % <unary_expression>
+return_statement   = "return" [ expression ] ";"
 
-<unary_expression> ::= <postfix_expression>
-                     | - <unary_expression>
+output_statement   = "meow" "(" expression ")" ";"
 
-<postfix_expression> ::= <primary_expression>
-                       | <postfix_expression> [ <expression> ]
+continue_statement = "continue" ";"
 
+break_statement    = "break" ";"
 
-<primary_expression> ::= <name>
-                       | <number_literal>
-                       | <boolean_literal>
-                       | <string_literal>
-                       | <byte_literal>
-                       | <input_call>
-                       | <function_call>
-                       | ( <expression> )
+while_statement     = "while" "(" expression ")" block ;
 
-<number_literal> ::= <digit>+
+if_statement        = "if", "(" expression ")"
+                      block
+                      [ "else" block ] ;
 
-<boolean_literal> ::= true | false
+initializer         = expression
+                    | array_creation
+                    | array_literal
 
-<string_literal> ::= "<any characters except double quotes>"
+array_creation      = "new" array_element_type
+                      "[" expression "]"
 
-<byte_literal> ::= '<single character except single quote>'
-
-<input_call> ::= hear ()
-
-<function_call> ::= <name> ( [ <arguments> ] )
-
-<arguments> ::= <expression>
-              | <expression> , <arguments>
-
-<array_creation> ::= new <array_element_type> [ <expression> ]
-
-<array_element_type> ::= int
-                       | long
-                       | byte
-
-<const_declaration> ::= const <var_declaration>
-
-<var_assignment> ::= <lvalue> = <initializer> ;
-
-<lvalue> ::= <name>
-           | <name> [ <expression> ]
-
-<function_call_statement> ::= <function_call> ;
-
-<function> ::= <return_type> <name>
-               ( <parameters> )
-               { <body> }
-
-<return_type> ::= <type>
-                | void
-
-<parameters> ::= <empty>
-               | <parameter>
-               | <parameter> , <parameters>
-
-<parameter> ::= <type> <name>
-
-<body> ::= <body_term>*
-
-<body_term> ::= <var_declaration>
-              | <const_declaration>
-              | <var_assignment>
-              | <cycle>
-              | <branch>
-              | <comment>
-              | <function_call_statement>
-              | <output>
-              | <continue_statement>
-              | <break_statement>
-              | <return_statement>
+array_literal       = "{" expression { "," expression } "}"
 
 
-<cycle> ::= while ( <boolean_expression> ) { <body> }
+expression          = logical_or ;
 
-<boolean_expression> ::= <expression>
+logical_or          = logical_and { "||" logical_and }
 
-<branch> ::= if ( <boolean_expression> ) { <body> }
-             [ else { <body> } ]
+logical_and         = bitwise_or { "&&" bitwise_or }
 
-<continue_statement> ::= continue ;
+bitwise_or          = bitwise_and { "|" bitwise_and }
 
-<break_statement> ::= break ;
+bitwise_and         = equality { "&" equality }
 
-<return_statement> ::= return [ <expression> ] ;
+equality            = comparison
+                      { ("==" | "!=") comparison }
 
-<output> ::= meow ( <expression> ) ;
+comparison          = additive
+                      { ("<" | ">" | "<=" | ">=") additive }
 
-<comment> ::= # <characters_except_newline>
+additive            = multiplicative
+                      { ("+" | "-") multiplicative }
+
+multiplicative      = unary,
+                      { ("*" | "/" | "%") unary }
+
+unary               = "-" unary
+                    | postfix
+
+postfix             = primary { "[" expression "]" }
+
+primary             = number_literal
+                    | string_literal
+                    | char_literal
+                    | bool_literal
+                    | variable
+                    | function_call
+                    | input_call
+                    | "(" expression ")"
+
+variable            = identifier
+
+function_call       = identifier
+                      "(" [ argument_list ] ")"
+
+argument_list       = expression { "," expression }
+
+input_call          = "hear" "()"
+
+number_literal      = decimal_integer
+                    | hexadecimal_integer
+                    | binary_integer
+                    | octal_integer
+
+string_literal      = '"' { string_character } '"'
+
+char_literal        = "'" character "'"
+
+bool_literal        = "true" | "false"
+
+comment             = COMMENT
+
+int128_statement    = "int128" "." "setLength",
+                      "(" expression ")" ";"
 ```
 
-Код выполняется последовательно.
+Примечания:
 
-Стратегия вычислений:
-Вызов по значению - аргументы функции вычисляется слева направо, затем связываются с соответствующим формальным параметром функции
+- Создание массива с помощью `int[] array = new int[param]` ожидает в качестве параметра только численный или символьный литерал.
+- Создание массива с помощью `int[] array = {param1,param2,...}` ожидает в качестве параметров только численные или символьные литерал.
+- `int128.setLength(param)` задает количество элементов вектора, с которыми происходят операции.
+- `int128.setLength(param)` ожидает в качестве параметра только численный литерал от 1 до 4.
+- Вектор можно создать двумя способами:
+  - указать элементы сразу: `int128 vec = {1,1,1,1};` или даже так `int128 vec = "abcd";`
+  - либо установить значение с помощью вспомогательного массива:
+    - ```meow
+         int[] data = {1,1,1,1};
+         int128 vec = data[0]; # возьмет 4 элемента, начиная с индекса 0
+      ```
 
-Память выделяется статически, при запуске модели. Видимость данных -- локальная.
+Порядок вычисления выражений
+
+- Выражения вычисляются слева направо.
+- Для бинарных операторов сначала вычисляется левый операнд, затем правый.
+
+Вызовы функций
+
+- Вычисляются аргументы функции слева направо. Каждый аргумент кладется в регистр a(0-7) последовательно.
+- Выполняется тело функции.
+- При встрече return функция возвращает результат вызывающему коду в регистрах a(0-1)
+
+Области видимости:
+
+- глобальная. Переменные, объявленные тут, сохраняются в глобальной памяти.
+- область видимости функции. Переменные, объявленные тут сохраняются на стеке (за исключением массивов, которые всегда хранятся в глобальной памяти). После возврата из функции стек возвращается в исходной состояние.
 
 Типизация -- статическая
 
+Типы:
+
+- `int` -- целое число (32 бита)
+- `long` -- целое число (64 бита)
+- `byte` -- целое число (8 бит)
+- `bool` -- целое число (8 бит), всегда хранит либо 0, либо 1
+- `string` -- строка, на уровне парсера преобразуется в массив `byte[]`
+- `int128` -- 128-битный вектор, состоящий из `int`
+
 Виды литералов:
 
-- long - 8-байтовые знаковые числа;
-- int - 4-байтовые знаковые числа;
-- string - null-terminated strings;
-- byte\bool - однобайтовые знаковые числа;
+| Вид        | Примеры                 |
+| ---------- | ----------------------- |
+| Числовые   | `123`, `0x234`, `0b111` |
+| Строковые  | `"string" `             |
+| Символьные | `'s'`, `'\n'`           |
+| Логические | `true`, `false`         |
+
+Примечания:
+
+- все литералы либо на этапе лексера, либо на этапе парсера представляются как численные литералы.
 
 ## Организация памяти
 
@@ -236,46 +266,79 @@
 |    ...                       |
 +------------------------------+
 
-          Data memory
+       Data Memory
 +------------------------------+
-| 00  : constant 1             |
-| 01  : constant 2             |
+| 00 : constant / variable     |
+| 01 : array                   |
+| 02 : vector                  |
 |    ...                       |
-| l+0 : num literals           |
-| l+1 : num literals           |
+|                              |
+|    Stack                     |
 |    ...                       |
-| c+0 : variable 1             |
-|    ...                       |
+| s-12: function variable      |
+| s-8: saved register          |
+| s-4: return address          |
+| s+0: stack pointer           |
+|                              |
 +------------------------------+
 ```
 
+Память команд:
+
+- Машинное слово 32 бита.
+- Все команды записываются в память последовательно
+- Функции записываются в память после основной программы, т.е. после `HALT`
+- Если инструкция использует относительную адресацию, то трансляция происходит в 2 этапа:
+  - сохраняются адреса меток
+  - вычисляются смещения
+
+Память данных:
+
+- Машинное слово 32 бита.
+- Все данные записываются в память последовательно в соответствии с появлением соотвествующих им переменных в коде
+
 1. Работа с литералами
 
-- Непосредственная адресация может быть использована только в операциях `Load Upper Immediate` и `Add Immediate`. Когда литерал используется в арифметических выражениях, либо в условных переходах.
-- Сохранение в статическую память происходит только при присвоении переменной значения литерала
-- Литералы размещаются последовательно в памяти
+- Непосредственная адресация может быть использована только в заранее определенных Immediate инструкциях
+- Литералы, используемые для инициализации глобальных переменных и массивов, могут сохраняться непосредственно в статической памяти
+- Литералы размещаются в памяти в соответствии с заранее определеным транслятором типом (long, int, byte)
 - Если литерал выходит за размер машинного слова, то он будет сохранен как Big-endian
 
 2. Работа с константами
 
-- константы размещаются в начале памяти данных, последовательно, в соответсвии с нотацией Big-endian
+- Константы размещаются в памяти также, как и обычные переменные. Однако им уже нельзя присвоить новое значение
 
 3. Работа с переменными
 
-- Переменная отображается в регистр только при помощи команд `Load Word` и `Load Byte`, например, при арифметичских операциях и условных переходах
-- Если регистров не хватает для переменных, то значение в регистрах может быть либо очищено, если оно не используется дальше в программе, либо отправлено на стек, если оно дальше будет использоваться
-- Сохранение переменных в память происходит только при помощи команд `Store Word` и `Store Byte` после завершения арифметической операции
-- Переменные отправляются на стек, только когда они лежат в регистрах. Это может произойти, когда регистров не хватает для всех переменных, например, при вычислениях или при передаче аргументов функции
+- Статическая память: глобальные переменные размещаются в секции данных. Их адрес известен на этапе компиляции.
+- Стек: локальные переменные функций размещаются в стековом кадре. Для доступа к ним используются смещения относительно указателя кадра s0 или указателя стека sp.
+- Регистры: во время вычислений значения переменных загружаются в регистры общего назначения. Для этого используются инструкции lw и lb.
+- Для сохранения значений из регистров в память используются инструкции sw и sb.
+- Если регистров недостаточно для одновременного хранения всех необходимых значений, временные значения сохраняются в стеке, а затем при необходимости загружаются обратно.
+- Массивы размещаются в памяти, а переменная массива хранит адрес его первого элемента. Для доступа к элементам вычисляется адрес нужного элемента.
+- Переменные типа long занимают два 32-битных слова и при загрузке или сохранении обрабатываются как пара слов.
 
 4. Работа с инструкциями
 
 - Инструкции сохраняются в отдельную память.
 - Каждая инструкция занимает 4 байта.
+- Ассемблер преобразует мнемоники инструкций в машинные коды.
+- Во время выполнения процессор считывает инструкцию по адресу, заданному счётчиком команд PC, декодирует её и выполняет соответствующую операцию.
+- Переходы и вызовы процедур изменяют значение PC.
 
 5. Работа с процедурами
 
-- Параметры процедуры передаются через регистры + стек
-- Результат процедуры возвращается через регистр a1
+- Вызов процедуры осуществляется инструкцией jal, которая сохраняет адрес возврата в регистре ra и передаёт управление процедуре.
+
+- Аргументы передаются через регистры a0–a7
+
+- Возвращаемое значение передаётся через регистр a0. Для типа long, занимающего два машинных слова, используются два регистра.
+
+- При входе в процедуру создаётся стековый кадр, в котором размещаются локальные переменные и сохраняются необходимые регистры.
+
+- Адрес возврата ra и указатель предыдущего кадра s0 сохраняются в стеке, чтобы их значения не потерялись при выполнении процедуры.
+
+- При завершении процедуры восстанавливаются сохранённые регистры и указатель стека. Возврат к вызывающему коду осуществляется через jalr.
 
 ## Система команд
 
@@ -402,14 +465,14 @@
 
 #### Бинарное представление
 
-| Type |      31 – 25      |  24 – 20   |  19 – 15   |  14 – 12   |  11 – 7  | 6 – 0  |
-| :--: | :---------------: | :--------: | :--------: | :--------: | :------: | :----: |
-|  I   |     imm[11:5]     |  imm[4:0]  |    rs1     |   funct3   |    rd    | opcode |
-|  U   |    imm[31:25]     | imm[24:20] | imm[19:15] | imm[14:12] |    rd    | opcode |
-|  R   |      funct7       |    rs2     |    rs1     |   funct3   |    rd    | opcode |
-|  J   | imm[20\|10:1\|11] | imm[19:12] |     —      |     —      |    rd    | opcode |
-|  B   |     imm[10:5]     |    rs2     |    rs1     |   funct3   | imm[4:1] | opcode |
-|  S   |     imm[11:5]     |    rs2     |    rs1     |   funct3   | imm[4:0] | opcode |
+| Type |  31 – 25   |  24 – 20   |  19 – 15   |  14 – 12   |  11 – 7  | 6 – 0  |
+| :--: | :--------: | :--------: | :--------: | :--------: | :------: | :----: |
+|  I   | imm[11:5]  |  imm[4:0]  |    rs1     |   funct3   |    rd    | opcode |
+|  U   | imm[31:25] | imm[24:20] | imm[19:15] | imm[14:12] |    rd    | opcode |
+|  R   |   funct7   |    rs2     |    rs1     |   funct3   |    rd    | opcode |
+|  J   | imm[20:14] | imm[13:9]  |  imm[8:4]  |  imm[3:1]  |    rd    | opcode |
+|  B   | imm[10:5]  |    rs2     |    rs1     |   funct3   | imm[4:1] | opcode |
+|  S   | imm[11:5]  |    rs2     |    rs1     |   funct3   | imm[4:0] | opcode |
 
 ## Транслятор
 

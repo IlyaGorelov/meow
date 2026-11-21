@@ -183,10 +183,7 @@ class Assembler:
         imm &= 0x1FFFFF
 
         return (
-            (((imm >> 20) & 0x1) << 31)
-            | (((imm >> 1) & 0x3FF) << 21)
-            | (((imm >> 11) & 0x1) << 20)
-            | (((imm >> 12) & 0xFF) << 12)
+            ((imm >> 1) << 12)
             | (rd << 7)
             | Assembler.get_opcode(opcode)
         )
@@ -537,12 +534,7 @@ class Assembler:
 
     @staticmethod
     def decode_jal(instruction, rd, rs1, rs2, funct3, funct7, reg):
-        imm = (
-            (((instruction >> 31) & 0x1) << 20)
-            | (((instruction >> 21) & 0x3FF) << 1)
-            | (((instruction >> 20) & 0x1) << 11)
-            | (((instruction >> 12) & 0xFF) << 12)
-        )
+        imm = ((instruction >> 12) & 0xFFFFF) << 1
 
         imm = Assembler.sign_extend(imm, 21)
         return "JAL", f"{reg(rd)}, {hex(imm)}"

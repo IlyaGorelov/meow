@@ -328,12 +328,7 @@ class DataPath:
             return self.sign_extend(instr & 0xFFFFF000, 32)
 
         if instr_type == "J":
-            imm = (
-                ((instr >> 31) & 1) << 20
-                | ((instr >> 21) & 0x3FF) << 1
-                | ((instr >> 20) & 1) << 11
-                | ((instr >> 12) & 0xFF) << 12
-            )
+            imm = ((instr >> 12) & 0xFFFFF) << 1
             return self.sign_extend(imm, 21)
 
         return None
