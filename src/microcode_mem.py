@@ -252,7 +252,7 @@ class Microcode:
 
     def add_fetch(self):
         self.addresses["FETCH"] = self.add_microinstruction(
-            "FETCH: Dispatch, PC+=1",
+            "FETCH: Dispatch, PC+=4",
             mpc_mux=MPCMux.DISPATCH,
             latch_mpc=1,
             pc_mux=PCMux.NEXT_PC,
