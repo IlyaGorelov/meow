@@ -867,12 +867,6 @@ class CodeGenerator:
 
         return declarations
 
-    def replace_code_labels_with_addresses():
-        return
-
-    def replace_data_labels_with_addresses():
-        return
-
     def store_long_global(self, label, high_register="t0", low_register="t1"):
         self.load_global_address("t2", label)
         self.append(f"sw {high_register}, 0(t2)")

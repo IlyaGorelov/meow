@@ -476,61 +476,156 @@ int128_statement    = "int128" "." "setLength",
 
 ## Транслятор
 
-Интерфейс командной строки: `translator.py <input_file> <target_file>`
+Интерфейс командной строки: `translator.py <input_file>.meow <target_file>.bin`
 
-Реализовано в модуле: [translator](./translator.py)
+Выходные файлы:
 
-Этапы трансляции (функция `translate`):
+- `<target_file>_AST.yml` - AST-дерево meow-файла
+- `<target_file>.bin` - бинарник с инструкциями
+- `<target_file>.bin.hex` - человеко-читаемое представление бинарника с инструкциями
+- `<target_file>_data.bin` - бинарник с глобальными данными
+- `<target_file>_data.bin.hex` - человеко-читаемое представление бинарника с глобальными данными
 
-1. Трансформирование текста в последовательность значимых термов.
-2. Проверка корректности программы (парность квадратных скобок).
-3. Генерация машинного кода.
+Реализовано в модуле: [translator](.src/translator.py)
+
+Этапы трансляции (функция `main`):
+
+1. Преобразовать мяу-файл в набор токенов (функция `tokenize` класса [Lexer](./src/lexer.py))
+2. Составить AST дерево из полученных токенов (функция `parse` класса [Parser](./src/parser.py))
+   - Здесь также происходит проверка синтаксиса (функция `expect`)
+
+3. Генерация машинного кода (функция `generate` класса [Generator](./src/generator.py))
+   - также тут происходит подстановка смещений вместо меток
+
+4. Преобразование машинного кода в бинарный формат (класс [Assembler](./src/isa.py) и [DataGenerator](./src/data_generator.py))
 
 Правила генерации машинного кода:
 
-- один символ языка -- одна инструкция;
-- для команд, однозначно соответствующих инструкциям, -- прямое отображение;
-- для циклов с соблюдением парности (многоточие -- произвольный код):
+1. Сначала находим все функции и сохраняем их
+2. Затем генерируем код основной программы, игнорируя функции
+   1. При объявлении переменных в секции .data под них выделяется метка с соответствующей директивой (.word, .byte, .long)
+      1. Массивы и строки заполняются данными сразу же без дополнительной логики.
+      2. Для переменных же других типов вызывается функция `generate_expression`
+         1. Эта функция для разных типов нодов AST-дерева подставляет разные директивы, в итоге которых результат сохраняется в регистре `t0`, тип `long` использует регистры `t0` и `t1`
+         2. Для биноминальных выражений процесс происходит так:
+         - Смотрим тип правой и левой части
+         - Если один из них `long`, то считаем все выражение как `long`, используя в 2 раза больше T-регистров, иначе
+         - вычисляем левую часть, результат сохраняется в `t0`
+         - пушим `t0` на стек
+         - вычисляем правую часть, результат перемещаем из `t0` в `t1`
+         - возвращаем значение со стека в `t0`
+         - делаем вычисление и сохраняем результат в `t0`
+      3. Сохраняем значение по нужной метке
+   2. Проверка условия при генерации циклов и ветвлений происходит таким образом:
+      1. Вызов `generate_expression` для условия, результат в `t0`
+      2. Если `t0==0` прыгаем в конец и выходим из блока (или прыгаем в `else`)
+   3. Вызов функции происходит так:
+      1. Для каждого аргумента вызываем `generate_expression` и сохраняем в A-регистр, перед этим пушим A-регистр на стек
+      2. Прыгаем в функцию используя `jal`
+      3. После возвращения загружаем значение, возвращенное функцией из A-регистров. Кладем это значение в `t0`
+      4. Возвращаем A-регистры со стек
+   4. Генерация функции происходит после основной программы вот так:
+      1. Вычисляем размер фрейма
+         - находим все объявления внутри функции
+         - добавляем в соотвествующий нод свойство `_slot_offset` - оффсет относительной фрейма
+         - прибавляем размер типа нода к размеру фрема
+         - Также прибавляем 8 -- размер регистра возврата и регистра, в котором будем хранить адрес фрейма
 
-  | Номер команды/инструкции | Программа | Машинный код |
-  | :----------------------- | :-------- | :----------- |
-  | n                        | `[`       | `JZ (k+1)`   |
-  | ...                      | ...       | ...          |
-  | k                        | `]`       | `JMP n`      |
-  | k+1                      | ...       | ...          |
-
-Примечание: вопросы отображения переменных на регистры опущены из-за отсутствия оных.
+      2. Генерим пролог:
+         - Вычесть из `sp` размер фрейма
+         - Сохраняем в конец фрейма `ra` и `s0`
+         - `mv s0, sp`
+      3. Инициализируем скоп функции с переменными в A-регистрах. Указываем, что эта переменная лежит именно в A-регистре
+      4. Затем начинаем генерировать код для каждого нода как для главного кода, однако:
+         - при инициализации добавляем переменную в scope с пометкой `local` и с `offset`
+         - сохраняем теперь не по метке, а по `offset + s0`
+      5. Генерим эпилог и возврат
+         1. Возращаем `ra` и `s0` со стека
+         2. Прибавляем размер фрейма к `s0`, это кладем в `sp`
+         3. `return`
 
 ## Модель процессора
 
-Интерфейс командной строки: `machine.py <machine_code_file> <input_file>`
+Интерфейс командной строки: `machine.py [-h] [-o {dec,char}] code_file data_file input_file`
 
-Реализовано в модуле: [machine](./machine.py).
+Входные данные:
+
+- `code_file` и `data_file` -- бинарники машинного кода и памяти данных
+- `input_file` - входные данные, разделенные запятой, но можно писать и строки в кавычках
+
+Выходные данные:
+
+- Вывод процессора
+- Журнал работы. Потактовый с описанием выполненной микроинструкции и состоянием регистра `t0`
+
+Реализовано в модуле: [machine](./src/machine.py).
 
 ### DataPath
 
-TODO: распистаь какой reg1 это rs1, rs2, rd
 <img src="datapath.png" />
 
 Реализован в классе `DataPath`.
 
-`data_memory` -- однопортовая память, поэтому либо читаем, либо пишем.
-
 Сигналы (обрабатываются за один такт, реализованы в виде методов класса):
 
-- `latch_data_addr` -- защёлкнуть выбранное значение в `data_addr`;
-- `latch_acc` -- защёлкнуть в аккумулятор выход памяти данных;
-- `wr` -- записать выбранное значение в память:
-  - инкрементированное;
-  - декрементированное;
-  - с порта ввода `input` (обработка на Python):
-    - извлечь из входного буфера значение и записать в память;
-    - если буфер пуст -- выбросить исключение;
-- `output` -- записать аккумулятор в порт вывода (обработка на Python).
+\- `latch_pc` -- защёлкнуть значение в `pc`:
 
-Флаги:
+- `next_pc` -- инкрементировать `pc` на 4 (адрес следующей инструкции);
+- `alu` -- записать результат АЛУ в `pc` (переход).
 
-- `zero` -- отражает наличие нулевого значения в аккумуляторе.
+\- `instruction_read` -- прочитать инструкцию из памяти команд по адресу `pc` и извлечь поля инструкции:
+
+- `rd` -- адрес регистра назначения;
+- `rs1` -- адрес первого регистра-источника;
+- `rs2` -- адрес второго регистра-источника.
+
+\- `latch_ar` -- защёлкнуть значение в регистре адреса данных `ar`:
+
+- `next_ar` -- инкрементировать `ar` на 4;
+- `alu` -- записать результат АЛУ в `ar`.
+
+\- `reg_write` -- записать выбранное значение в регистр `rd`:
+
+- с выхода АЛУ `alu`;
+- из памяти данных (`mem_w`) -- прочитать 4 байта и интерпретировать как знаковое число;
+- из памяти данных (`mem_b`) -- прочитать 1 байт;
+- из `pc` (`next_pc`) -- записать адрес следующей инструкции;
+- с порта ввода `in` -- извлечь значение из входного буфера;
+  - если буфер пуст -- выбросить исключение.
+
+\- `left_alu_sel` -- выбрать левый операнд АЛУ:
+
+- `zero` -- нулевое значение;
+- `reg1` -- значение из регистра `rs1`;
+- `pc` -- значение `pc`.
+
+\- `right_alu_sel` -- выбрать правый операнд АЛУ:
+
+- `reg2` -- значение из регистра `rs2`;
+- `imm` -- непосредственное значение (immediate), извлечённое из инструкции.
+
+\- `alu` -- выполнить операцию над выбранными операндами
+
+\- `data_read` -- прочитать из памяти данных по адресу `ar` указанное количество байт (`1` или `4`)
+
+\- `data_write` -- записать выбранное значение в память данных по адресу `ar`:
+
+- `write_b` -- записать младший байт регистра `rs2`;
+- `write_w` -- записать 4 байта регистра `rs2`;
+- `write_vector` -- записать 4 байта выбранного элемента векторного регистра.
+
+\- `input_read` -- прочитать значение из входного порта
+
+\- `port_write` -- записать значение из регистра `rs2` в порт вывода
+
+\- `latch_vl` -- защёлкнуть длину вектора `vl` из результата АЛУ
+
+\- `vreg_write` -- записать выбранное значение в векторный регистр `rd`:
+
+- `valu` -- записать результат векторного АЛУ;
+- `mem` -- записать значение из памяти данных в выбранный элемент векторного регистра.
+
+\- `vector_alu` -- выполнить векторную операцию над регистрами `rs1` и `rs2`
 
 ### ControlUnit
 
@@ -538,19 +633,57 @@ TODO: распистаь какой reg1 это rs1, rs2, rd
 
 Реализован в классе `ControlUnit`.
 
-- Microcoded (реализовано полностью на Python).
-- Метод `process_next_tick` моделирует выполнение полного цикла инструкции (1-2 такта процессора).
-- `step_counter` необходим для многотактовых инструкций;
-  - в реализации класса `ControlUnit` отсутствует, т.к. неявно задан потоком управления.
+- Microprogrammed
+- `micro_pc` -- счётчик адреса микрокоманд, определяющий текущую микрокоманду в микропамяти.
+- `tick` -- счётчик тактов процессора, увеличиваемый после выполнения микрокоманды.
+- `process_next_tick` -- выполнить текущую микрокоманду из микропамяти.
+- `execute_micro_instr` -- декодировать микрокоманду, сформировать список сигналов управления, отсортировать их по приоритету и последовательно выполнить. После выполнения микрокоманды перейти к следующему такту.
+- `dispatch` -- декодировать инструкцию из памяти команд по `pc`, определить её тип по `opcode`, `funct3`, `funct7` (или `vl` для векторных инструкций) и перейти к соответствующей микропрограмме.
+- `latch_mpc` -- обновить счётчик микрокоманд `micro_pc` в зависимости от выбранного режима перехода:
+  - `DISPATCH` -- перейти к микропрограмме соответствующей инструкции;
+  - `INCREMENT` -- перейти к следующей микрокоманде;
+  - `ZERO` -- сбросить `micro_pc` в 0;
+  - `CONDITIONAL` -- условный переход по результату АЛУ (проверка на ноль или ненулевое значение).
 
-Сигнал:
+Сигналы управления (формируются декодированием микрокоманды и выполняются за один такт):
 
-- `latch_program_counter` -- сигнал для обновления счётчика команд в ControlUnit.
+\- `latch_mpc` -- сигнал обновления счётчика микрокоманд `micro_pc`:
+
+- `DISPATCH` -- диспетчеризация инструкции, переход к соответствующей микропрограмме;
+- `INCREMENT` -- инкремент `micro_pc`;
+- `ZERO` -- переход к началу микропрограммы (адрес 0);
+- `CONDITIONAL` -- условное изменение `micro_pc` в зависимости от результата АЛУ:
+  - если условие выполняется -- увеличить `micro_pc` на 2;
+  - иначе -- увеличить `micro_pc` на 1.
+
+\- `latch_pc` -- сигнал обновления программного счётчика `pc`
+
+\- `alu_left_sel` -- выбрать левый операнд АЛУ
+
+\- `alu_right_sel` -- выбрать правый операнд АЛУ
+
+\- `alu_op` -- выбрать операцию АЛУ
+
+\- `valu_op` -- выбрать операцию векторного АЛУ
+
+\- `latch_vl` -- загрузить длину вектора `vl` из результата АЛУ (допустимый диапазон от 1 до 4).
+
+\- `data_write` -- сигнал записи в память данных
+
+\- `reg_write` -- сигнал записи в регистровый файл
+
+\- `vreg_write` -- сигнал записи в векторный регистровый файл
+
+\- `latch_ar` -- сигнал обновления регистра адреса памяти данных `ar`
+
+\- `port_write` -- записать значение из регистра `rs2` в порт вывода
+\- `halt` -- остановить выполнение процессора, выбросив исключение `StopIteration`.
 
 Особенности работы модели:
 
+- Микроинструкции можно посмотреть в [microcode.txt](./microcode.txt)
 - Цикл симуляции осуществляется в функции `simulation`.
-- Шаг моделирования соответствует одной инструкции с выводом состояния в журнал.
+- Шаг моделирования соответствует одной микроинструкции с выводом состояния в журнал.
 - Для журнала состояний процессора используется стандартный модуль `logging`.
 - Количество инструкций для моделирования лимитировано.
 - Остановка моделирования осуществляется при:
@@ -590,91 +723,108 @@ TODO: распистаь какой reg1 это rs1, rs2, rd
 
 Тестирование выполняется при помощи golden test-ов.
 
-1. Тесты для языка `bf` реализованы в: [golden_bf_test.py](./golden_bf_test.py). Конфигурации:
-   - [golden/cat_bf.yml](golden/cat_bf.yml)
-   - [golden/hello_bf.yml](golden/hello_bf.yml)
-1. Тесты для языка `asm` реализованы в: [golden_asm_test.py](./golden_asm_test.py). Конфигурации:
-   - [golden/cat_asm.yml](golden/cat_asm.yml)
+- [test/golden/hello.yml](test/golden/hello.yml)
+- [test/golden/cat.yml](test/golden/cat.yml)
+- [test/golden/hello_username.yml](test/golden/hello_username.yml)
+- [test/golden/sort.yml](test/golden/sort.yml)
+- [test/golden/long_work.yml](test/golden/long_work.yml)
+  - Складывает два `long` числа
+  - Сравнивает с третьим
+  - Если сумма первых двух равна третьему -- выводит 'true'
+- [test/golden/is_prime.yml](test/golden/is_prime.yml)
+- [test/golden/format_string.yml](test/golden/format_string.yml)
 
-Запустить тесты: `poetry run pytest . -v`
+### Тестирование векторных инструкций
 
-Обновить конфигурацию golden tests: `poetry run pytest . -v --update-goldens`
+В задание предлагается взять алгоритм `four_lane_mac`.
 
-Пример использования транслятора (бинарное и json представление машинного кода):
+Ссылки на golden test'ы скалярного алгоритма и векторного:
+
+- [test/golden/four_lane_scalar.yml](test/golden/four_lane_scalar.yml)
+  - 676 тактов
+- [test/golden/four_lane_vector.yml](test/golden/four_lane_vector.yml)
+  - 1781 такт
+
+Как видим, векторы показывают крайнюю неэффективность (в 3 раза больше тактов). Это вызвано спецефическим способм сохранения данных в вектор и выгрузки из вектора.
+
+В операциях векторного сложения мы действительно выигрываем 3 такта в сравнении со скалярной реализацией, но в обмен проигрываем больше 10 тактов на загрузку и выгрузку данных.
+
+Однако, если выбрать алгоритм, который работает с заранее подготовленными данными, которые лежат в массиве, и производить с этим массивом однотипные операции, то можно увидить, что векторы в этом случае работают горазде быстрее скалярных операций. Пример такого алгоритма:
+
+- [test/golden/array_transform_scalar.yml](test/golden/array_transform_scalar.yml)
+  - 53611 тактов
+- [test/golden/array_transform_vector.yml](test/golden/array_transform_vector.yml)
+  - 18285 тактов
+
+Пример использования транслятора:
 
 ```shell
-$ cd brainfuck/python
-$ cat examples/cat.bf
-,[.,]
-$ ./translator.py examples/cat.bf out/target.bin
-source LoC: 2 code instr: 6
-$ xxd out/target.bin
-00000000: 5000 0000 7000 0005 4000 0000 5000 0000  P...p...@...P...
-00000010: 6000 0001 8000 0000                      `.......
-$ cat out/target.bin.hex
-0 - 50000000 - input
-1 - 70000005 - jz 5
-2 - 40000000 - print
-3 - 50000000 - input
-4 - 60000001 - jmp 1
-5 - 80000000 - halt⏎
-$ ./translator.py examples/cat.bf out/target.json
-source LoC: 2 code instr: 6
-$ cat out/target.json
-[{"index": 0, "opcode": "input", "term": [1, 1, ","]},
- {"index": 4, "opcode": "jz", "arg": 5, "term": [1, 2, "["]},
- {"index": 2, "opcode": "print", "term": [1, 3, "."]},
- {"index": 3, "opcode": "input", "term": [1, 4, ","]},
- {"index": 4, "opcode": "jmp", "arg": 1, "term": [1, 5, "]"]},
- {"index": 5, "opcode": "halt"}]⏎
+$ cd meow
+$ cat examples/cat.meow
+while(true){
+  meow(hear());
+}
+$ src/translator.py examples/cat.meow out/target.bin
 ```
 
 Пример использования модели процессора:
 
 ```shell
-$ cat examples/foo_input.txt
+$ cat ./input.txt
+"foo"
+$ src/machine.py out/target.bin out/target_data.bin ./input.txt -o char
+DEBUG    machine:simulation      TICK:    0 PC:   0/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:    1 PC:   4/ 5 AR:     0  T0:     0 	LUI, goto FETCH
+DEBUG    machine:simulation      TICK:    2 PC:   4/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:    3 PC:   8/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+DEBUG    machine:simulation      TICK:    4 PC:   8/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:    5 PC:  12/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+DEBUG    machine:simulation      TICK:    6 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:    7 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+DEBUG    machine:simulation      TICK:    8 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+DEBUG    machine:simulation      TICK:    9 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   10 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+DEBUG    data_path:input_read      input: 102
+DEBUG    machine:simulation      TICK:   11 PC:  20/ 0 AR:     0  T0:   102 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   12 PC:  24/50 AR:     0  T0:   102 	OUT, goto FETCH
+DEBUG    data_path:port_write      output: f
+DEBUG    machine:simulation      TICK:   13 PC:  24/ 0 AR:     0  T0:   102 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   14 PC:  28/20 AR:     0  T0:   102 	JAL, goto FETCH
+DEBUG    machine:simulation      TICK:   15 PC:   8/ 0 AR:     0  T0:   102 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   16 PC:  12/ 1 AR:     0  T0:   102 	ADDI, goto FETCH
+DEBUG    machine:simulation      TICK:   17 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   18 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+DEBUG    machine:simulation      TICK:   19 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+DEBUG    machine:simulation      TICK:   20 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   21 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+DEBUG    data_path:input_read      input: 111
+DEBUG    machine:simulation      TICK:   22 PC:  20/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   23 PC:  24/50 AR:     0  T0:   111 	OUT, goto FETCH
+DEBUG    data_path:port_write      output: o
+DEBUG    machine:simulation      TICK:   24 PC:  24/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   25 PC:  28/20 AR:     0  T0:   111 	JAL, goto FETCH
+DEBUG    machine:simulation      TICK:   26 PC:   8/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   27 PC:  12/ 1 AR:     0  T0:   111 	ADDI, goto FETCH
+DEBUG    machine:simulation      TICK:   28 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   29 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+DEBUG    machine:simulation      TICK:   30 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+DEBUG    machine:simulation      TICK:   31 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   32 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+DEBUG    data_path:input_read      input: 111
+DEBUG    machine:simulation      TICK:   33 PC:  20/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   34 PC:  24/50 AR:     0  T0:   111 	OUT, goto FETCH
+DEBUG    data_path:port_write      output: o
+DEBUG    machine:simulation      TICK:   35 PC:  24/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   36 PC:  28/20 AR:     0  T0:   111 	JAL, goto FETCH
+DEBUG    machine:simulation      TICK:   37 PC:   8/ 0 AR:     0  T0:   111 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   38 PC:  12/ 1 AR:     0  T0:   111 	ADDI, goto FETCH
+DEBUG    machine:simulation      TICK:   39 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   40 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+DEBUG    machine:simulation      TICK:   41 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+DEBUG    machine:simulation      TICK:   42 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+DEBUG    machine:simulation      TICK:   43 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+WARNING  machine:simulation      Input buffer is empty!
+INFO     machine:simulation      output_buffer: 'f, o, o'
 foo
-$ ./machine.py out/target.bin examples/foo_input.txt
-DEBUG:root:TICK:   0 PC:   0/0 ADDR:   0 MEM_OUT: 0 ACC: 0 	input [50000000]
-DEBUG:root:TICK:   1 PC:   0/1 ADDR:   0 MEM_OUT: 0 ACC: 0 	input [50000000]
-DEBUG:root:input: 'f'
-DEBUG:root:TICK:   2 PC:   1/0 ADDR:   0 MEM_OUT: 102 ACC: 0 	jz 5 [70000005]
-DEBUG:root:TICK:   3 PC:   1/1 ADDR:   0 MEM_OUT: 102 ACC: 102 	jz 5 [70000005]
-DEBUG:root:TICK:   4 PC:   2/0 ADDR:   0 MEM_OUT: 102 ACC: 102 	print [40000000]
-DEBUG:root:TICK:   5 PC:   2/1 ADDR:   0 MEM_OUT: 102 ACC: 102 	print [40000000]
-DEBUG:root:output: '' << 'f'
-DEBUG:root:TICK:   6 PC:   3/0 ADDR:   0 MEM_OUT: 102 ACC: 102 	input [50000000]
-DEBUG:root:TICK:   7 PC:   3/1 ADDR:   0 MEM_OUT: 102 ACC: 102 	input [50000000]
-DEBUG:root:input: 'o'
-DEBUG:root:TICK:   8 PC:   4/0 ADDR:   0 MEM_OUT: 111 ACC: 102 	jmp 1 [60000001]
-DEBUG:root:TICK:   9 PC:   1/0 ADDR:   0 MEM_OUT: 111 ACC: 102 	jz 5 [70000005]
-DEBUG:root:TICK:  10 PC:   1/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	jz 5 [70000005]
-DEBUG:root:TICK:  11 PC:   2/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	print [40000000]
-DEBUG:root:TICK:  12 PC:   2/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	print [40000000]
-DEBUG:root:output: 'f' << 'o'
-DEBUG:root:TICK:  13 PC:   3/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	input [50000000]
-DEBUG:root:TICK:  14 PC:   3/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	input [50000000]
-DEBUG:root:input: 'o'
-DEBUG:root:TICK:  15 PC:   4/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	jmp 1 [60000001]
-DEBUG:root:TICK:  16 PC:   1/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	jz 5 [70000005]
-DEBUG:root:TICK:  17 PC:   1/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	jz 5 [70000005]
-DEBUG:root:TICK:  18 PC:   2/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	print [40000000]
-DEBUG:root:TICK:  19 PC:   2/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	print [40000000]
-DEBUG:root:output: 'fo' << 'o'
-DEBUG:root:TICK:  20 PC:   3/0 ADDR:   0 MEM_OUT: 111 ACC: 111 	input [50000000]
-DEBUG:root:TICK:  21 PC:   3/1 ADDR:   0 MEM_OUT: 111 ACC: 111 	input [50000000]
-DEBUG:root:input: '\n'
-DEBUG:root:TICK:  22 PC:   4/0 ADDR:   0 MEM_OUT: 10 ACC: 111 	jmp 1 [60000001]
-DEBUG:root:TICK:  23 PC:   1/0 ADDR:   0 MEM_OUT: 10 ACC: 111 	jz 5 [70000005]
-DEBUG:root:TICK:  24 PC:   1/1 ADDR:   0 MEM_OUT: 10 ACC: 10 	jz 5 [70000005]
-DEBUG:root:TICK:  25 PC:   2/0 ADDR:   0 MEM_OUT: 10 ACC: 10 	print [40000000]
-DEBUG:root:TICK:  26 PC:   2/1 ADDR:   0 MEM_OUT: 10 ACC: 10 	print [40000000]
-DEBUG:root:output: 'foo' << '\n'
-DEBUG:root:TICK:  27 PC:   3/0 ADDR:   0 MEM_OUT: 10 ACC: 10 	input [50000000]
-DEBUG:root:TICK:  28 PC:   3/1 ADDR:   0 MEM_OUT: 10 ACC: 10 	input [50000000]
-WARNING:root:Input buffer is empty!
-INFO:root:output_buffer: 'foo\n'
-foo
-
-ticks: 28
+ticks: 43
 ```

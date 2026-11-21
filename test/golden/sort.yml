@@ -886,58 +886,50 @@ out_stdout: |
   ticks: 38096
 
 out_log: |-
-  DEBUG    machine:simulation           TICK:   0 PC:   0/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   1 PC:   4/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:   2 PC:   4/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   3 PC:   8/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:   4 PC:   8/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   5 PC:  12/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:   6 PC:  12/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   7 PC:  16/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:   8 PC:  16/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   9 PC:  20/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  10 PC:  20/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  11 PC:  24/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  12 PC:  24/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  13 PC:  28/41 RA:   0 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  14 PC:  28/42 RA:   0 	SW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  15 PC:  28/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  16 PC:  32/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  17 PC:  32/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  18 PC:  36/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  19 PC:  36/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  20 PC:  40/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  21 PC:  40/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  22 PC:  44/41 RA:   0 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  23 PC:  44/42 RA:  88 	SW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  24 PC:  44/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  25 PC:  48/1 RA:  88 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  26 PC:  48/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  27 PC:  52/5 RA:  88 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  28 PC:  52/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  29 PC:  56/1 RA:  88 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  30 PC:  56/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  31 PC:  60/41 RA:  88 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  32 PC:  60/42 RA:  92 	SW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  33 PC:  60/0 RA:  92 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  34 PC:  64/5 RA:  92 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  35 PC:  64/0 RA:  92 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  36 PC:  68/1 RA:  92 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  37 PC:  68/0 RA:  92 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  38 PC:  72/45 RA:  92 	LW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  39 PC:  72/46 RA:  88 	LW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  40 PC:  72/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  41 PC:  76/1 RA:  88 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  42 PC:  76/0 RA:  88 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  43 PC:  80/41 RA:  88 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  44 PC:  80/42 RA: 3996 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:    0 PC:   0/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    1 PC:   4/ 5 AR:     0  T0:     0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:    2 PC:   4/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    3 PC:   8/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:    4 PC:   8/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    5 PC:  12/ 5 AR:     0  T0:     0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:    6 PC:  12/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    7 PC:  16/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:    8 PC:  16/ 0 AR:     0  T0:     4 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    9 PC:  20/ 5 AR:     0  T0:     4 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   10 PC:  20/ 0 AR:     0  T0:     4 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   11 PC:  24/ 1 AR:     0  T0:     4 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   12 PC:  24/ 0 AR:     0  T0:     4 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   13 PC:  28/41 AR:     0  T0:     4 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:   14 PC:  28/42 AR:     0  T0:     4 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:   15 PC:  28/ 0 AR:     0  T0:     4 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   16 PC:  32/ 1 AR:     0  T0:     4 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   17 PC:  32/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   18 PC:  36/ 5 AR:     0  T0:     1 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   19 PC:  36/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   20 PC:  40/ 1 AR:     0  T0:     1 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   21 PC:  40/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   22 PC:  44/41 AR:     0  T0:     1 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:   23 PC:  44/42 AR:    88  T0:     1 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:   24 PC:  44/ 0 AR:    88  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   25 PC:  48/ 1 AR:    88  T0:     1 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   26 PC:  48/ 0 AR:    88  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   27 PC:  52/ 5 AR:    88  T0:     0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   28 PC:  52/ 0 AR:    88  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   29 PC:  56/ 1 AR:    88  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   30 PC:  56/ 0 AR:    88  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   31 PC:  60/41 AR:    88  T0:     0 	SW: AR = rs1 + imm
+  DEBUG    machine:simulation           TICK:   32 PC:  60/42 AR:    92  T0:     0 	SW: MEMORY OPERATION, goto FETCH
+  DEBUG    machine:simulation           TICK:   33 PC:  60/ 0 AR:    92  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   34 PC:  64/ 5 AR:    92  T0:     0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:   35 PC:  64/ 0 AR:    92  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   36 PC:  68/ 1 AR:    92  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   37 PC:  68/ 0 AR:    92  T0:     0 	FETCH: Dispatch, PC+=1
 
   ... [LOG TRUNCATED] ...
 
-  DEBUG    machine:simulation           TICK: 38092 PC: 1508/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK: 38093 PC: 1512/23 RA: 3996 	BEQ: compare registers
-  DEBUG    machine:simulation           TICK: 38094 PC: 1512/25 RA: 3996 	BEQ: branch taken, PC += immediate, goto FETCH
-  DEBUG    machine:simulation           TICK: 38095 PC: 1636/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK: 38096 PC: 1640/22 RA: 3996 	HALT
+  DEBUG    machine:simulation           TICK: 38093 PC: 1512/23 AR:  3996  T0:     0 	BEQ: compare registers
+  DEBUG    machine:simulation           TICK: 38094 PC: 1512/25 AR:  3996  T0:     0 	BEQ: branch taken, PC += immediate, goto FETCH
+  DEBUG    machine:simulation           TICK: 38095 PC: 1636/ 0 AR:  3996  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK: 38096 PC: 1640/22 AR:  3996  T0:     0 	HALT
   INFO     machine:simulation           output_buffer: 'A, B, Z, a, b, c, e, f, g, j, s, v'
   EOF

@@ -1,8 +1,6 @@
 in_source: |-
-  int char = hear();
-  while (char != 0){
-      meow(char);
-      char = hear();
+  while(true){
+    meow(hear());
   }
 in_stdin: |2
    "._     _
@@ -19,71 +17,30 @@ in_stdout_repr: char
 ast:
   type: program
   body:
-  - type: var_declaration
-    var_type: int
-    name: char
-    value:
-      type: input
-  - type: while
-    condition:
-      type: binary
-      operator: '!='
-      left:
-        type: variable
-        name: char
-      right:
-        type: int
-        value: 0
-    body:
-    - type: output
-      value:
-        type: variable
-        name: char
-    - type: assignment
-      target:
-        type: variable
-        name: char
-      value:
-        type: input
+    - type: while
+      condition:
+        type: bool
+        value: "true"
+      body:
+        - type: output
+          value:
+            type: input
 out_code: !!binary |
-  AAARAvoBAQEAAAKJAAADggADg4EAU4AIAAADggADg4EAA4KH/8EBAQBRAAgAAAKBAAKDAQABAocA
-  QQEBAGLSgwBQMoMCAqIGAAADggADg4EAA4KHAFCACgAAAokAAAOCAAODgQBTgAj//WAEAAAACw==
+  AAARAvoBAQEAEAKBAAKmBgAAAokAUIAK//9gBAAAAAs=
 
 out_code_hex: |-
   00000000 - 00001102 - LUI sp, 1
   00000004 - FA010101 - addi sp, sp, -96
-  00000008 - 00000289 - IN t0, 0
-  0000000C - 00000382 - LUI t2, 0
-  00000010 - 00038381 - addi t2, t2, 0
-  00000014 - 00538008 - sw t0, 0(t2)
-  00000018 - 00000382 - LUI t2, 0
-  0000001C - 00038381 - addi t2, t2, 0
-  00000020 - 00038287 - lw t0, 0(t2)
-  00000024 - FFC10101 - addi sp, sp, -4
-  00000028 - 00510008 - sw t0, 0(sp)
-  0000002C - 00000281 - addi t0, zero, 0
-  00000030 - 00028301 - addi t1, t0, 0
-  00000034 - 00010287 - lw t0, 0(sp)
-  00000038 - 00410101 - addi sp, sp, 4
-  0000003C - 0062D283 - xor t0, t0, t1
-  00000040 - 00503283 - sltu t0, zero, t0
-  00000044 - 0202A206 - beq t0, zero, 0x24
-  00000048 - 00000382 - LUI t2, 0
-  0000004C - 00038381 - addi t2, t2, 0
-  00000050 - 00038287 - lw t0, 0(t2)
-  00000054 - 0050800A - OUT t0, 1
-  00000058 - 00000289 - IN t0, 0
-  0000005C - 00000382 - LUI t2, 0
-  00000060 - 00038381 - addi t2, t2, 0
-  00000064 - 00538008 - sw t0, 0(t2)
-  00000068 - FFFD6004 - JAL zero, -0x54
-  0000006C - 0000000B - HALT
+  00000008 - 00100281 - addi t0, zero, 1
+  0000000C - 0002A606 - beq t0, zero, 0xc
+  00000010 - 00000289 - IN t0, 0
+  00000014 - 0050800A - OUT t0, 1
+  00000018 - FFFF6004 - JAL zero, -0x14
+  0000001C - 0000000B - HALT
 
 out_data: !!binary |
-  AAAAAA==
 
-out_data_hex: |-
-  00000000 - 00000000
+out_data_hex: |
 
 out_stdout: |
   ============================================================
@@ -97,54 +54,50 @@ out_stdout: |
   \ \ .  /      |
     || |-_\__   /
   ((_/`(____.-'
-  ticks: 6915
+  ticks: 1594
 
 out_log: |-
-  DEBUG    machine:simulation           TICK:   0 PC:   0/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   1 PC:   4/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:   2 PC:   4/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   3 PC:   8/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:   4 PC:   8/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   5 PC:  12/49 RA:   0 	IN, goto FETCH
+  DEBUG    machine:simulation           TICK:    0 PC:   0/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    1 PC:   4/ 5 AR:     0  T0:     0 	LUI, goto FETCH
+  DEBUG    machine:simulation           TICK:    2 PC:   4/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    3 PC:   8/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:    4 PC:   8/ 0 AR:     0  T0:     0 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    5 PC:  12/ 1 AR:     0  T0:     0 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:    6 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:    7 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+  DEBUG    machine:simulation           TICK:    8 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+  DEBUG    machine:simulation           TICK:    9 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   10 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
   DEBUG    data_path:input_read           input: 46
-  DEBUG    machine:simulation           TICK:   6 PC:  12/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   7 PC:  16/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:   8 PC:  16/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:   9 PC:  20/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  10 PC:  20/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  11 PC:  24/41 RA:   0 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  12 PC:  24/42 RA:   0 	SW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  13 PC:  24/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  14 PC:  28/5 RA:   0 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  15 PC:  28/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  16 PC:  32/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  17 PC:  32/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  18 PC:  36/45 RA:   0 	LW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  19 PC:  36/46 RA:   0 	LW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  20 PC:  36/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  21 PC:  40/1 RA:   0 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  22 PC:  40/0 RA:   0 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  23 PC:  44/41 RA:   0 	SW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  24 PC:  44/42 RA: 3996 	SW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  25 PC:  44/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  26 PC:  48/1 RA: 3996 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  27 PC:  48/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  28 PC:  52/1 RA: 3996 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  29 PC:  52/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  30 PC:  56/45 RA: 3996 	LW: AR = rs1 + imm
-  DEBUG    machine:simulation           TICK:  31 PC:  56/46 RA: 3996 	LW: MEMORY OPERATION, goto FETCH
-  DEBUG    machine:simulation           TICK:  32 PC:  56/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  33 PC:  60/1 RA: 3996 	ADDI, goto FETCH
-  DEBUG    machine:simulation           TICK:  34 PC:  60/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  35 PC:  64/12 RA: 3996 	XOR, goto FETCH
-  DEBUG    machine:simulation           TICK:  36 PC:  64/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  37 PC:  68/9 RA: 3996 	SLTU, goto FETCH
-  DEBUG    machine:simulation           TICK:  38 PC:  68/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  39 PC:  72/23 RA: 3996 	BEQ: compare registers
-  DEBUG    machine:simulation           TICK:  40 PC:  72/24 RA: 3996 	BEQ: branch not taken, goto FETCH
-  DEBUG    machine:simulation           TICK:  41 PC:  72/0 RA: 3996 	FETCH: Dispatch, PC+=1
-  DEBUG    machine:simulation           TICK:  42 PC:  76/5 RA: 3996 	LUI, goto FETCH
-  DEBUG    machine:simulation           TICK:  43 PC:  76/0 RA: 3996 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   11 PC:  20/ 0 AR:     0  T0:    46 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   12 PC:  24/50 AR:     0  T0:    46 	OUT, goto FETCH
+  DEBUG    data_path:port_write           output: .
+  DEBUG    machine:simulation           TICK:   13 PC:  24/ 0 AR:     0  T0:    46 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   14 PC:  28/20 AR:     0  T0:    46 	JAL, goto FETCH
+  DEBUG    machine:simulation           TICK:   15 PC:   8/ 0 AR:     0  T0:    46 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   16 PC:  12/ 1 AR:     0  T0:    46 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   17 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   18 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+  DEBUG    machine:simulation           TICK:   19 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+  DEBUG    machine:simulation           TICK:   20 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   21 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+  DEBUG    data_path:input_read           input: 95
+  DEBUG    machine:simulation           TICK:   22 PC:  20/ 0 AR:     0  T0:    95 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   23 PC:  24/50 AR:     0  T0:    95 	OUT, goto FETCH
+  DEBUG    data_path:port_write           output: _
+  DEBUG    machine:simulation           TICK:   24 PC:  24/ 0 AR:     0  T0:    95 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   25 PC:  28/20 AR:     0  T0:    95 	JAL, goto FETCH
+  DEBUG    machine:simulation           TICK:   26 PC:   8/ 0 AR:     0  T0:    95 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   27 PC:  12/ 1 AR:     0  T0:    95 	ADDI, goto FETCH
+  DEBUG    machine:simulation           TICK:   28 PC:  12/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   29 PC:  16/23 AR:     0  T0:     1 	BEQ: compare registers
+  DEBUG    machine:simulation           TICK:   30 PC:  16/24 AR:     0  T0:     1 	BEQ: branch not taken, goto FETCH
+  DEBUG    machine:simulation           TICK:   31 PC:  16/ 0 AR:     0  T0:     1 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   32 PC:  20/49 AR:     0  T0:     1 	IN, goto FETCH
+  DEBUG    data_path:input_read           input: 32
+  DEBUG    machine:simulation           TICK:   33 PC:  20/ 0 AR:     0  T0:    32 	FETCH: Dispatch, PC+=1
+  DEBUG    machine:simulation           TICK:   34 PC:  24/50 AR:     0  T0:    32 	OUT, goto FETCH
+  DEBUG    data_path:port_write           output:  
 
   ... [LOG TRUNCATED] ...
 

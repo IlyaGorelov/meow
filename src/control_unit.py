@@ -200,11 +200,8 @@ class ControlUnit:
         self.micro_pc = self.dispatch_table[key]
 
     def __repr__(self):
-        state_repr = "TICK: {:3} PC: {:3}/{} RA: {:3}".format(
-            self._tick,
-            self.data_path.pc,
-            self.micro_pc,
-            self.data_path.ar,
+        state_repr = "TICK: {:4} PC: {:3}/{:2} AR: {:5}  T0: {:5}".format(
+            self._tick, self.data_path.pc, self.micro_pc, self.data_path.ar, self.data_path.regs[5]
         )
 
         instr_repr = self.mc_descriptions[self.micro_pc]

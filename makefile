@@ -16,10 +16,10 @@ test-update-golden:
 	poetry run pytest test/ -v --update-goldens
 
 runt: out
-	python3 src/translator.py examples/array_transform_scalar.meow out/out.bin
+	python3 src/translator.py examples/cat.meow out/out.bin
 
 runm: out
-	python3 src/machine.py out/out.bin out/out_data.bin input.txt 
+	python3 src/machine.py out/out.bin out/out_data.bin input.txt -o char
 
 out:
 	mkdir -p out
