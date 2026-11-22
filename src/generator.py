@@ -604,20 +604,22 @@ class CodeGenerator:
         operator = node["operator"]
 
         self.generate_expression(node["left"])
-        if self.base_type(self.expression_type(node["left"])) != "long":
-            self.append("slt t1, t0, zero")
-            self.append("sub t1, zero, t1")
+        if self.base_type(self.expression_type(node["left"])) != LONG:
+            self.append("mv t1, t0")
+            self.append("slt t0, t1, zero")
+            self.append("sub t0, zero, t0")
 
-        self.push("t0")
-        self.push("t1")
+        self.push("t0")  # high word
+        self.push("t1")  # low word
 
         self.generate_expression(node["right"])
         if self.base_type(self.expression_type(node["right"])) != "long":
-            self.append("slt t1, t0, zero")
-            self.append("sub t1, zero, t1")
+            self.append("mv t1, t0")
+            self.append("slt t0, t1, zero")
+            self.append("sub t0, zero, t0")
 
-        self.append("mv t2, t0")
-        self.append("mv t3, t1")
+        self.append("mv t2, t0")  # high word
+        self.append("mv t3, t1")  # low word
 
         self.pop("t1")
         self.pop("t0")
